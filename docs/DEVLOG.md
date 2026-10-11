@@ -112,7 +112,7 @@ Newest entries are at the bottom. Each entry ends with **Worked / Didn't work / 
 ---
 
 ## Still to do
-- [ ] Test the new brick size in the headset, then weigh a real brick
+- [ ] Test the new brick size in the headset (complete), then weigh a real brick (incomplete)
 - [ ] Real LAMA table + UR5 model from HANDZONe (ghost robot)
 - [ ] 3-point calibration with robot coordinates (needs Matthias's measurements)
 - [ ] Grid snapping + rotating bricks
