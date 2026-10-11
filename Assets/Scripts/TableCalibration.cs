@@ -1,0 +1,137 @@
+using UnityEngine;
+using UnityEngine.XR;
+
+// Puts the virtual table (and its bricks) on top of a real table by touching 4 points with the
+// right controller tip: front-left corner, front-right corner, back-left corner, then the floor.
+// Right controller: B = start, trigger = record point.
+public class TableCalibration : MonoBehaviour
+{
+    [Tooltip("Parent of Table, Bricks and Floor; its origin is the middle of the table's front edge, on the top surface")]
+    public Transform workspace;
+    public Transform table;
+    public Transform floor;
+    public Transform rightController;
+    public BrickControls bricks;
+    public Passthrough passthrough;
+
+    [Tooltip("How far in front of the controller the measuring tip sits (m)")]
+    public float tipOffset = 0.06f;
+
+    static readonly string[] Prompts =
+    {
+        "1/4  Touch the FRONT-LEFT corner\nof the table, pull trigger",
+        "2/4  Touch the FRONT-RIGHT corner,\npull trigger",
+        "3/4  Touch the BACK-LEFT corner,\npull trigger",
+        "4/4  Touch the FLOOR,\npull trigger",
+    };
+
+    readonly Vector3[] points = new Vector3[4];
+    int step = -1; // -1 = not calibrating
+    bool bWasDown, triggerWasDown;
+
+    Transform tip;
+    TextMesh label;
+
+    Vector3 TipPosition => rightController.position + rightController.forward * tipOffset;
+
+    void Start()
+    {
+        // Small white ball that shows exactly which point gets measured
+        tip = GameObject.CreatePrimitive(PrimitiveType.Sphere).transform;
+        tip.name = "Calibration Tip";
+        Destroy(tip.GetComponent<Collider>());
+        tip.localScale = Vector3.one * 0.015f;
+
+        var labelGo = new GameObject("Calibration Label");
+        labelGo.transform.SetParent(rightController, false);
+        labelGo.transform.localPosition = new Vector3(0f, 0.07f, 0.02f);
+        label = labelGo.AddComponent<TextMesh>();
+        label.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        labelGo.GetComponent<MeshRenderer>().sharedMaterial = label.font.material;
+        label.fontSize = 48;
+        label.characterSize = 0.004f;
+        label.anchor = TextAnchor.LowerCenter;
+        label.alignment = TextAlignment.Center;
+        label.text = "B = place table";
+    }
+
+    void Update()
+    {
+        if (rightController == null) return;
+        tip.position = TipPosition;
+
+        // Keep the label readable: face the headset
+        var cam = Camera.main;
+        if (cam != null)
+            label.transform.rotation = Quaternion.LookRotation(label.transform.position - cam.transform.position);
+
+        var right = InputDevices.GetDeviceAtXRNode(XRNode.RightHand);
+        if (!right.isValid) return;
+        right.TryGetFeatureValue(CommonUsages.secondaryButton, out bool bDown);
+        right.TryGetFeatureValue(CommonUsages.triggerButton, out bool triggerDown);
+
+        if (bDown && !bWasDown)
+        {
+            step = 0;
+            label.text = Prompts[0];
+        }
+        else if (triggerDown && !triggerWasDown && step >= 0)
+        {
+            points[step] = TipPosition;
+            step++;
+            if (step < points.Length)
+            {
+                label.text = Prompts[step];
+            }
+            else
+            {
+                step = -1;
+                Place(points[0], points[1], points[2], points[3]);
+            }
+        }
+
+        bWasDown = bDown;
+        triggerWasDown = triggerDown;
+    }
+
+    void Place(Vector3 frontLeft, Vector3 frontRight, Vector3 backLeft, Vector3 floorPoint)
+    {
+        Vector3 edge = frontRight - frontLeft;
+        edge.y = 0f;
+        if (edge.magnitude < 0.1f)
+        {
+            label.text = "Front corners too close together\nB = try again";
+            return;
+        }
+
+        Vector3 right = edge.normalized;
+        Vector3 forward = Vector3.Cross(right, Vector3.up); // away from you, into the table
+
+        float width = edge.magnitude;
+        float depth = Vector3.Dot(backLeft - frontLeft, forward);
+        float top = (frontLeft.y + frontRight.y + backLeft.y) / 3f;
+        float height = top - floorPoint.y;
+        if (depth < 0.1f || height < 0.1f)
+        {
+            label.text = "That didn't look like a table\n(check the corner order)  B = try again";
+            return;
+        }
+
+        Vector3 frontMiddle = (frontLeft + frontRight) / 2f;
+        frontMiddle.y = top;
+        workspace.SetPositionAndRotation(frontMiddle, Quaternion.LookRotation(forward, Vector3.up));
+
+        // Make the virtual table the same size as the real one, and put the floor where you touched it
+        table.localPosition = new Vector3(0f, -height / 2f, depth / 2f);
+        table.localScale = new Vector3(width, height, depth);
+        if (floor != null) floor.localPosition = new Vector3(0f, -height, 0f);
+
+        if (bricks != null) bricks.ResetBricks();
+
+        // You can see the real table now, so only show the virtual one in VR mode
+        if (passthrough != null) passthrough.HideWhenOn(table.GetComponent<Renderer>());
+
+        label.text = $"Table placed: {width * 100f:F0} x {depth * 100f:F0} cm, {height * 100f:F0} cm high\nB = redo";
+        Debug.Log($"PicoBricks: table placed at {frontMiddle}, {width:F2} x {depth:F2} m, height {height:F2} m");
+    }
+}
