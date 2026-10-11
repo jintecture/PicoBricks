@@ -8,9 +8,9 @@ Newest entries are at the bottom. Each entry ends with **Worked / Didn't work / 
 
 | Who | Task (week of 12 Oct) |
 | --- | --- |
-| PS + JK | Virtual environment on the Pico headset (this repo) |
-| MN | Robot arm moves blocks to the correct location |
-| SM | Computer vision + Raspberry Pi camera |
+| Parjanya Singh + Jin Kim | Virtual environment on the Pico headset (this repo) |
+| Matthias Nahum | Robot arm moves blocks to the correct location |
+| Suzanne Minkels | Computer vision + Raspberry Pi camera |
 
 ---
 
@@ -49,7 +49,7 @@ Newest entries are at the bottom. Each entry ends with **Worked / Didn't work / 
 - **Decision:** build the Pico app in a **small fresh project** instead of inside HANDZONe. HANDZONe is large and set up for Quest; debugging a new headset inside an unfamiliar big project is hard. Robot parts get copied in later.
 - Template: Universal 3D. Added the PICO SDK (git URL) and XR Interaction Toolkit to `Packages/manifest.json`.
 - PICO SDK window → **Apply All** (Android, API 29, IL2CPP/ARM64, PICO XR plugin). Project Validation → **Fix All** (floor tracking, `PXR_Manager` in the scene).
-- **Signing key** (the app's "name tag"; the Pico only installs signed apps): Player → Publishing Settings → Custom Keystore → created `user.keystore` in the project root, alias `picobricks`. Unity forgets the password on every restart, so re-enter it before building. **The keystore is not in Git**; ask JK for it.
+- **Signing key** (the app's "name tag"; the Pico only installs signed apps): Player → Publishing Settings → Custom Keystore → created `user.keystore` in the project root, alias `picobricks`. Unity forgets the password on every restart, so re-enter it before building. **The keystore is not in Git**; ask Jin for it.
 - Package name `com.lama.picobricks`.
 - ✅ **Worked:** first build (Ctrl+B), a grey cube floating in the headset.
 
@@ -97,10 +97,10 @@ Newest entries are at the bottom. Each entry ends with **Worked / Didn't work / 
 - Known limitation: after toggling Y, re-calibrate (tracking height jump).
 
 ### Decisions and open questions
-- **Robot pickup:** the robot picks bricks from a **fixed, repeatable spot**. Plan: a 3D-printed holder/tray with chamfered pockets that self-centre the bricks, pinned to the table; the soft gripper should tolerate a few mm. MN teaches the position once. Computer vision for finding loose bricks can come later.
+- **Robot pickup:** the robot picks bricks from a **fixed, repeatable spot**. Plan: a 3D-printed holder/tray with chamfered pockets that self-centre the bricks, pinned to the table; the soft gripper should tolerate a few mm. Matthias teaches the position once. Computer vision for finding loose bricks can come later.
 - **Headset ↔ robot registration:** the table is bolted to the robot, so 3 marks on the table have **fixed robot coordinates**. Measure them once in the lab (jog the robot tip to each mark), then each session touch the same marks with the controller. This also works after moving to the exhibition hall. Computer vision (marker seen by the headset camera) is a possible upgrade; needs Pico Enterprise camera access (untested).
-- **AR → robot interface:** an ordered list `(brick_id, x, y, z, yaw)` in robot coordinates (note: Unity is Y-up left-handed, UR is Z-up right-handed). Transport and format to agree with MN.
-- **HANDZONe parts to reuse:** UR5 model (live digital twin from joint data), table model (`Meshes/Table.fbx`), robot commands (MoveL/MoveJ, tool digital out for the gripper, program playback for previews). Open question for MN: drive the robot through HANDZONe's server or through their own script?
+- **AR → robot interface:** an ordered list `(brick_id, x, y, z, yaw)` in robot coordinates (note: Unity is Y-up left-handed, UR is Z-up right-handed). Transport and format to agree with Matthias.
+- **HANDZONe parts to reuse:** UR5 model (live digital twin from joint data), table model (`Meshes/Table.fbx`), robot commands (MoveL/MoveJ, tool digital out for the gripper, program playback for previews). Open question for Matthias: drive the robot through HANDZONe's server or through their own script?
 - **Sharing:** Git + GitHub (not OneDrive: syncing Unity's Library folder corrupts projects).
 
 ### Version control
@@ -116,7 +116,7 @@ Newest entries are at the bottom. Each entry ends with **Worked / Didn't work / 
 ## Still to do
 - [ ] Test the new brick size in the headset, then weigh a real brick
 - [ ] Real LAMA table + UR5 model from HANDZONe (ghost robot)
-- [ ] 3-point calibration with robot coordinates (needs MN's measurements)
+- [ ] 3-point calibration with robot coordinates (needs Matthias's measurements)
 - [ ] Grid snapping + rotating bricks
 - [ ] Preview, then send brick list to the robot (URSim first)
 - [ ] Test on a clean table at uni
@@ -125,6 +125,6 @@ Newest entries are at the bottom. Each entry ends with **Worked / Didn't work / 
 
 ## How to run it (short version)
 1. Unity Hub → Add project from disk → this folder (Unity **6000.3.8f1** with Android modules).
-2. Get `user.keystore` from JK, put it in the project root, enter the passwords in Player → Publishing Settings.
+2. Get `user.keystore` from Jin, put it in the project root, enter the passwords in Player → Publishing Settings.
 3. **PicoBricks → Setup Brick Scene**, then **Ctrl+B** with the headset connected (PICO cable, USB debugging on).
 4. In the headset: **B** (right) calibrate the table, **trigger** to record points, **X** (left) reset bricks, **Y** (left) passthrough on/off, **grip** to grab.

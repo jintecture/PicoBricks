@@ -16,7 +16,7 @@ public static class BrickSceneSetup
     static readonly Vector3 BrickSize = new Vector3(0.05f, 0.05f, 0.10f);
     const int BrickCount = 10;
     const int BricksPerRow = 5;
-    // TODO(JK): real weight to follow. Estimate: 0.25 L of timber at ~500 kg/m³ ≈ 0.13 kg
+    // TODO(Jin): real weight to follow. Estimate: 0.25 L of timber at ~500 kg/m³ ≈ 0.13 kg
     const float BrickMass = 0.13f;
     // Default only; TableCalibration replaces it with the measured height
     const float TableHeight = 0.75f;
