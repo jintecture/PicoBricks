@@ -12,10 +12,14 @@ public static class BrickSceneSetup
     const string RigPath =
         "Assets/Samples/XR Interaction Toolkit/3.4.0/Starter Assets/Prefabs/XR Origin (XR Rig).prefab";
 
-    // TODO(JK): real brick size, count and weight to follow; real lab table height to measure
-    const float BrickSize = 0.1f;      // 10 cm
-    const float BrickMass = 0.3f;      // light timber, ~0.3 kg
-    const float TableHeight = 0.75f;   // also sets how far below the table top the invisible floor sits
+    // Real bricks: 5 cm wide, 5 cm high, 10 cm deep (x, y, z in metres)
+    static readonly Vector3 BrickSize = new Vector3(0.05f, 0.05f, 0.10f);
+    const int BrickCount = 10;
+    const int BricksPerRow = 5;
+    // TODO(JK): real weight to follow. Estimate: 0.25 L of timber at ~500 kg/m³ ≈ 0.13 kg
+    const float BrickMass = 0.13f;
+    // Default only; TableCalibration replaces it with the measured height
+    const float TableHeight = 0.75f;
 
     [MenuItem("PicoBricks/Setup Brick Scene")]
     static void Setup()
@@ -71,13 +75,18 @@ public static class BrickSceneSetup
 
         var bricks = new GameObject("Bricks");
         bricks.transform.SetParent(workspace.transform, false);
-        for (int i = 0; i < 5; i++)
+        // Rows of bricks near the front edge, 10 cm apart side to side, long side pointing away from you
+        for (int i = 0; i < BrickCount; i++)
         {
+            int column = i % BricksPerRow, row = i / BricksPerRow;
             var brick = GameObject.CreatePrimitive(PrimitiveType.Cube);
             brick.name = $"Brick_{i}";
             brick.transform.SetParent(bricks.transform);
-            brick.transform.localPosition = new Vector3(-0.3f + i * 0.15f, BrickSize / 2f + 0.001f, 0.15f);
-            brick.transform.localScale = Vector3.one * BrickSize;
+            brick.transform.localPosition = new Vector3(
+                (column - (BricksPerRow - 1) / 2f) * 0.10f,
+                BrickSize.y / 2f + 0.001f,
+                0.10f + row * 0.15f);
+            brick.transform.localScale = BrickSize;
             brick.GetComponent<Renderer>().sharedMaterial = wood;
 
             var rb = brick.AddComponent<Rigidbody>();

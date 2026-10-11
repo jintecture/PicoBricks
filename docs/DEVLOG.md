@@ -103,10 +103,18 @@ Newest entries are at the bottom. Each entry ends with **Worked / Didn't work / 
 - **HANDZONe parts to reuse:** UR5 model (live digital twin from joint data), table model (`Meshes/Table.fbx`), robot commands (MoveL/MoveJ, tool digital out for the gripper, program playback for previews). Open question for MN: drive the robot through HANDZONe's server or through their own script?
 - **Sharing:** Git + GitHub (not OneDrive: syncing Unity's Library folder corrupts projects).
 
+### Version control
+- Set up Git for this project. Everything up to here is in the first commit; this log is the record of how we got there.
+  From now on: one commit per working step, with a short note on what was tested.
+
+### Real brick size (in progress)
+- Bricks are **5 cm wide × 5 cm high × 10 cm deep**, **10** of them: two rows of five near the front edge, long side pointing away from the user.
+- Weight not measured yet; estimate 0.13 kg (0.25 L of timber at ~500 kg/m³). Change `BrickMass` in `BrickSceneSetup.cs` once weighed.
+
 ---
 
 ## Still to do
-- [ ] Brick size **5 × 5 × 10 cm**, about **10 bricks** (real weight to follow)
+- [ ] Test the new brick size in the headset, then weigh a real brick
 - [ ] Real LAMA table + UR5 model from HANDZONe (ghost robot)
 - [ ] 3-point calibration with robot coordinates (needs MN's measurements)
 - [ ] Grid snapping + rotating bricks
