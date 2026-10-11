@@ -41,9 +41,7 @@ Newest entries are at the bottom. Each entry ends with **Worked / Didn't work / 
   It targets Meta Quest, so we use it as **reference and a source of parts** (UR5 model, table model, robot commands), not as our main app.
 
 ### Headset connection
-- Developer mode: Settings → General → About → tap **Software Version** 7×, then **USB Debug** on.
-- **Didn't work:** the laptop didn't see the headset at all. **Cause:** a charge-only USB-C cable. **Fix:** use the cable that came with the Pico.
-- Confirmed with `adb devices` (adb ships with Unity's Android module).
+- Connect using given C-TYPE cable
 
 ### New project: PicoBricks
 - **Decision:** build the Pico app in a **small fresh project** instead of inside HANDZONe. HANDZONe is large and set up for Quest; debugging a new headset inside an unfamiliar big project is hard. Robot parts get copied in later.
