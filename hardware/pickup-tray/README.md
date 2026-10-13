@@ -8,7 +8,7 @@ A minimal 3D-printed tray that puts the **6 bricks** (50 × 50 × 100 mm, lying 
 | File | What it is |
 | --- | --- |
 | `pickup_tray_bricks_1-6.stl` | **Print this.** 232 × 252 × 12 mm, fits the Bambu A1 bed (256 × 256 mm) |
-| `pickup_tray_bricks_1-6.3dm` | Rhino model |
+| `pickup_tray.3dm` | Rhino model with both: layer **Tray** and layer **Test frames** (next to it) |
 | `test_fit_clearance_0.5-1.0-1.5.stl` | **Print this first:** three small frames (0.5 / 1.0 / 1.5 mm play per side, engraved on each). Try real bricks in each |
 | `make_tray.py` | Script that generates everything. Change the numbers at the top, then in Rhino 8 run `RunPythonScript` on it |
 | `make_tray_log.txt` | Output of the last run: size, volume, **pocket and cross coordinates** |

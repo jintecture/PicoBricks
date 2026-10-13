@@ -8,6 +8,7 @@
 
 import os
 import struct
+import System
 import Rhino
 import Rhino.Geometry as rg
 from Rhino.FileIO import File3dm
@@ -278,11 +279,28 @@ def main():
     for k, (px, py) in enumerate(cross_points):
         log("Calibration cross %d: %.1f, %.1f (top of frame, z = %.1f)" % (k + 1, px, py, PLATE))
 
+    # One Rhino file with both, on separate layers; test frames placed next to the tray
     model = File3dm()
     model.Settings.ModelUnitSystem = Rhino.UnitSystem.Millimeters
+    layers = {}
+    for name, colour in (("Tray", System.Drawing.Color.FromArgb(70, 130, 200)),
+                         ("Test frames", System.Drawing.Color.FromArgb(230, 140, 40))):
+        layer = Rhino.DocObjects.Layer()
+        layer.Name = name
+        layer.Color = colour
+        model.AllLayers.Add(layer)
+        layers[name] = model.AllLayers.Count - 1
     for b in breps:
-        model.Objects.AddBrep(b)
-    model.Write(os.path.join(HERE, NAME + ".3dm"), 8)
+        attr = Rhino.DocObjects.ObjectAttributes()
+        attr.LayerIndex = layers["Tray"]
+        model.Objects.AddBrep(b, attr)
+    for b in tests:
+        b.Translate(rg.Vector3d(w + 40.0, 0, 0))
+        attr = Rhino.DocObjects.ObjectAttributes()
+        attr.LayerIndex = layers["Test frames"]
+        model.Objects.AddBrep(b, attr)
+    model.Write(os.path.join(HERE, "pickup_tray.3dm"), 8)
+    log("Rhino file: pickup_tray.3dm (layers 'Tray' and 'Test frames')")
     log("Done.")
 
 

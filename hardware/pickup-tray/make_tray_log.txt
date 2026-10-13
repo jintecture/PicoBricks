@@ -12,4 +12,5 @@ Pocket centres (brick number: x, y from the tray's front-left corner, mm):
 Calibration cross 1: 76.0, 126.0 (top of frame, z = 1.6)
 Calibration cross 2: 156.0, 126.0 (top of frame, z = 1.6)
 Calibration cross 3: 76.0, 247.0 (top of frame, z = 1.6)
+Rhino file: pickup_tray.3dm (layers 'Tray' and 'Test frames')
 Done.
