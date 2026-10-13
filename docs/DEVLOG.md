@@ -111,6 +111,19 @@ Newest entries are at the bottom. Each entry ends with **Worked / Didn't work / 
 
 ---
 
+## 2026-10-14: 3D-printed pickup trays
+
+- **Problem:** the robot needs every brick to start in exactly the same spot. **Decision:** 3D-printed trays (PLA, Bambu A1), fixed to the robot table with double-sided tape.
+- Generated in **Rhino 8 by a script** (`hardware/pickup-tray/make_tray.py`) instead of modelling by hand: exact, and easy to change (clearance, slot widths) by editing numbers and re-running. Output: STL files ready for Bambu Studio. Details, print settings and pocket coordinates: [`hardware/pickup-tray/README.md`](../hardware/pickup-tray/README.md).
+- Design choices:
+  - **Two trays** (6 + 4 pockets), because 10 don't fit on the 256 × 256 mm bed.
+  - Bricks held at the **corners only**, with a 45° lead-in so they self-centre; **open slots on every side** because we don't know the gripper's finger size yet.
+  - **Engraved numbers 1–10** = brick IDs; **3 crosshairs on Tray A** = shared reference points for the robot and the AR calibration.
+- **Didn't work at first:** Rhino booleans failed (some cutting shapes were inside-out, and pocket boxes fully inside the tray can't be subtracted on their own). **Fix:** flip shapes to face outwards, merge all cutters into one, then subtract once.
+- Still to do: print a test pocket and check the fit with a real brick; adjust slots once Matthias knows the gripper.
+
+---
+
 ## Still to do
 - [ ] Test the new brick size in the headset (complete), then weigh a real brick (incomplete)
 - [ ] Real LAMA table + UR5 model from HANDZONe (ghost robot)
@@ -118,6 +131,7 @@ Newest entries are at the bottom. Each entry ends with **Worked / Didn't work / 
 - [ ] Grid snapping + rotating bricks
 - [ ] Preview, then send brick list to the robot (URSim first)
 - [ ] Test on a clean table at uni
+- [ ] Print the pickup trays (test pocket first), tape them to the robot table, teach positions
 
 ---
 
