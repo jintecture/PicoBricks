@@ -16,13 +16,17 @@ Part of the Creative Robotics group project (TU Delft, ARIT1507, Oct 2026).
 ## What it does right now
 - Shows your **real room** through the headset cameras (passthrough) with virtual bricks in it.
 - **Calibrate** the virtual table onto a real table by touching 4 points.
-- **10 bricks (5 × 5 × 10 cm)** you can grab and place.
-- **Grid snap** (branch `snap-grid`, not yet tested in the headset): let go of a brick over the table and it turns to the nearest 90°, lines up with a 5 cm grid, lands on whatever is below it (table or another brick) and locks in place. Let go off the table and it returns to its start spot. Every placement is logged as grid position + layer + rotation, the data the robot will need.
+- **6 bricks (5 × 5 × 10 cm)** you can grab and place, lying flat or standing on end.
+- **Grid snap** (branch `snap-grid`): let go of a brick over the table and it
+  - settles **lying** (5 cm tall) or **standing** (10 cm tall), whichever is closer to how you held it, turned to the nearest 90°;
+  - on another placed brick: sits **centred on it** (no half-brick offsets); on the table: edges snap to a **5 cm grid**;
+  - lands on whatever is below and locks in place. Take a brick out of a stack and the ones above **drop down** onto what's left.
+  - Let go off the table and it returns to its start spot. Every placement is logged (position, rotation, lying/standing): the data the robot will need.
 
 ## Controls (in the headset)
 | Button | Action |
 | --- | --- |
-| **Grip** (either hand, side button) | Grab a brick (point the laser at it, or reach out and grab it). Release over the table to snap it to the grid |
+| **Grip** (either hand, side button) | Grab a brick (point the laser at it, or reach out and grab it). Release over the table to snap it; hold it upright to stand it on end |
 | **B** (right controller) | Start table calibration |
 | **Trigger** (right controller) | Record a calibration point. Order: front-left corner, front-right corner, back-left corner, floor |
 | **X** (left controller) | Put all bricks back on the table |
@@ -38,11 +42,11 @@ The **white ball** in front of the right controller is the measuring tip. The te
 | Path | What it is |
 | --- | --- |
 | `Assets/Scenes/SampleScene.unity` | **The scene**: XR rig, table, bricks, floor. Open this in Unity. |
-| `Assets/Editor/BrickSceneSetup.cs` | Menu **PicoBricks → Setup Brick Scene**: builds the whole scene in one click. Brick size, number and weight are set at the top of this file. |
+| `Assets/Editor/BrickSceneSetup.cs` | Menu **PicoBricks → Setup Brick Scene**: builds the whole scene in one click. Brick size, number (6) and weight are set at the top of this file. |
 | `Assets/Scripts/Passthrough.cs` | Turns the real-room camera view on and off. |
 | `Assets/Scripts/BrickControls.cs` | X and Y buttons; puts bricks back if they fall off the world. |
 | `Assets/Scripts/TableCalibration.cs` | 4-point table calibration (B + trigger). |
-| `Assets/Scripts/BrickSnap.cs` | Grid snap on release (one per brick): 5 cm grid in the table's frame, 90° turns, stacking, lock in place. Grid size is a setting on the component. |
+| `Assets/Scripts/BrickSnap.cs` | Grid snap on release (one per brick): lying/standing, 90° turns, centred stacking or 5 cm table grid, lock in place, bricks above drop when one is removed. `BrickSnap.AlignToBelow` switches centred stacking off (half-brick offsets allowed). |
 | `Assets/Materials/` | Colours for the bricks (Wood), table and floor. |
 | `docs/DEVLOG.md` | Development log: every step, problem and decision. |
 

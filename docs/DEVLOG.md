@@ -115,7 +115,9 @@ Newest entries are at the bottom. Each entry ends with **Worked / Didn't work / 
 - [x] Test the new brick size in the headset, then weigh a real brick (**0.12 kg** measured; `BrickMass` left at the 0.13 kg estimate, the difference doesn't matter in the app)
 - [ ] Real LAMA table + UR5 model from HANDZONe (ghost robot)
 - [ ] 3-point calibration with robot coordinates (needs Matthias's measurements)
-- [ ] Grid snapping + rotating bricks: **written** (`BrickSnap.cs`, branch `snap-grid`), **not yet tested in the headset**
+- [ ] Grid snapping + rotating bricks: v2 on branch `snap-grid` (lying/standing, centred stacking, no floating), **v2 not yet tested in the headset**
+- [ ] Controller button to switch aligned ↔ non-aligned stacking (`BrickSnap.AlignToBelow`)
+- [ ] Ask Matthias: can the gripper place a brick **standing** (picked lying from the tray, turned 90°)?
 - [ ] Preview, then send brick list to the robot (URSim first)
 - [ ] Test on a clean table at uni
 
@@ -147,3 +149,18 @@ Newest entries are at the bottom. Each entry ends with **Worked / Didn't work / 
 - `BrickSceneSetup.cs` adds `BrickSnap` to every brick and wires `workspace` + `table`. Re-run **PicoBricks → Setup Brick Scene** after pulling.
 - Known limits: lifting a brick out of the middle of a stack leaves the ones above floating (they're locked); a brick half over the table edge counts as off the table.
 - **Still to do:** test in the headset (gaps, rotations, stacks of 3, off-table return, X reset, snapping after B calibration).
+
+### Grid snap v2 (same day, after testing v1 in the headset)
+- v1 test findings (installed by hand, `001.apk`):
+  - **Floating:** take a brick out from under a stack and the ones above stayed in mid-air (they were locked).
+  - **Half-brick offset:** a brick on top of another often landed half a brick off. Cause: v1 snapped edges to a 5 cm grid, which is half a brick length, so a "brick-wall" offset was a valid position. Not what we want for robot towers.
+  - Bricks could only lie flat.
+  - 10 bricks were more than needed.
+- v2 changes (`BrickSnap.cs`, `BrickSceneSetup.cs`, `BrickControls.cs`):
+  - **6 bricks**, one row along the front edge.
+  - **Lying or standing:** on release, if the brick's long axis is within 45° of vertical it stands (5 × 5 cm footprint, 10 cm tall); otherwise it lies flat. Yaw still snaps to 90°.
+  - **Centred stacking:** released over a placed brick, the new brick is centred on it (same orientation: exactly on top; turned 90°: centred across). On the bare table the 5 cm grid still applies. `BrickSnap.AlignToBelow = false` brings back grid-only (half-brick offsets allowed), ready for a button that toggles it.
+  - **Heights** are now the exact top of whatever is below (rounded to 5 cm) instead of "layers", so standing (10 cm) and lying (5 cm) bricks mix correctly.
+  - **No floating:** when a placed brick is picked up, every placed brick (lowest first) sweeps straight down and drops onto whatever is left below it. X reset now also clears the placed state.
+- Each placement now also logs lying/standing, which the robot list needs.
+- **Still to do:** test v2 in the headset (stack aligned, crossed stack centred, standing brick on table and on a brick, pull the middle brick of a 3-stack, X reset).

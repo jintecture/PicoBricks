@@ -59,6 +59,8 @@ public class BrickControls : MonoBehaviour
         var pos = bricksParent.TransformPoint(pose.localPos);
         var rot = bricksParent.rotation * pose.localRot;
         pose.rb.isKinematic = false; // placed (snapped) bricks are locked; free them again
+        var snap = pose.rb.GetComponent<BrickSnap>();
+        if (snap != null) snap.Unplace();
         pose.rb.linearVelocity = Vector3.zero;
         pose.rb.angularVelocity = Vector3.zero;
         pose.rb.transform.SetPositionAndRotation(pos, rot);
