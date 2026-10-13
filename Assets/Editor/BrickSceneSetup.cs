@@ -6,7 +6,7 @@ using UnityEngine;
 
 // Menu: PicoBricks > Setup Brick Scene
 // Replaces the plain XR Origin with the XRI Starter Assets rig (controller ray + grab),
-// keeps PXR_Manager, and adds a floor, a table and five grabbable 10 cm bricks.
+// keeps PXR_Manager, and adds a floor, a table and ten grabbable 5 x 5 x 10 cm bricks that snap to a grid.
 public static class BrickSceneSetup
 {
     const string RigPath =
@@ -102,6 +102,11 @@ public static class BrickSceneSetup
                 // Hold the brick where you grabbed it instead of snapping its centre to the hand
                 grabType.GetProperty("useDynamicAttach")?.SetValue(grab, true);
             }
+
+            // Grid snap on release: 5 cm grid in the table's frame, 90° turns, drops onto what's below, then locks
+            var snap = brick.AddComponent<BrickSnap>();
+            snap.workspace = workspace.transform;
+            snap.table = table.transform;
         }
 
         if (rig != null)

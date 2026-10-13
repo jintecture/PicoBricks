@@ -112,10 +112,10 @@ Newest entries are at the bottom. Each entry ends with **Worked / Didn't work / 
 ---
 
 ## Still to do
-- [ ] Test the new brick size in the headset (complete), then weigh a real brick (incomplete)
+- [x] Test the new brick size in the headset, then weigh a real brick (**0.12 kg** measured; `BrickMass` left at the 0.13 kg estimate, the difference doesn't matter in the app)
 - [ ] Real LAMA table + UR5 model from HANDZONe (ghost robot)
 - [ ] 3-point calibration with robot coordinates (needs Matthias's measurements)
-- [ ] Grid snapping + rotating bricks
+- [ ] Grid snapping + rotating bricks: **written** (`BrickSnap.cs`, branch `snap-grid`), **not yet tested in the headset**
 - [ ] Preview, then send brick list to the robot (URSim first)
 - [ ] Test on a clean table at uni
 
@@ -126,3 +126,24 @@ Newest entries are at the bottom. Each entry ends with **Worked / Didn't work / 
 2. Get `user.keystore` from Jin, put it in the project root, enter the passwords in Player → Publishing Settings.
 3. **PicoBricks → Setup Brick Scene**, then **Ctrl+B** with the headset connected (PICO cable, USB debugging on).
 4. In the headset: **B** (right) calibrate the table, **trigger** to record points, **X** (left) reset bricks, **Y** (left) passthrough on/off, **grip** to grab.
+
+---
+
+## 2026-10-13 (Tue): Grid snap (Parjanya)
+
+### Setting up a second laptop
+- Cloned to `C:\dev\PicoBricks` (outside OneDrive), Unity **6000.3.8f1** + Android modules. No keystore yet, so Custom Keystore unticked locally (not committed).
+- **Didn't work:** Build And Run built fine every time, but the install step kept failing (`Could not find any valid targets to launch on for Android` / `Failed to find device ... in 'adb devices'`), even right after Unity listed the headset as `Pico A8110`. Suspects: USB debugging not approved for this laptop, headset sleeping when taken off, or another adb (PICO Developer Center / Meta tools) fighting Unity's. Workaround: install `001.apk` by hand.
+
+### Grid snap: `Assets/Scripts/BrickSnap.cs`
+- Goal: layouts the robot can actually build, i.e. exact, discrete positions instead of wherever physics drops a brick.
+- On release over the table (`selectExited`, after XRI has finished dropping):
+  1. **Turn** to the nearest 90° (long side away from you or sideways).
+  2. **Grid**: the brick's front-left corner snaps to a **5 cm** grid in the `Workspace` frame (origin = middle of the table's front edge), so edges line up between bricks of either orientation.
+  3. **Height**: a box sweep straight down finds the table or the brick below; height is rounded to whole 5 cm layers.
+  4. **Lock**: Rigidbody goes kinematic; physics only while held. Grabbing a placed brick unlocks it.
+- Released off the table (footprint not fully on it): back to its start spot. **X** reset also unlocks placed bricks (`BrickControls.PutBack`).
+- Each placement logs `x, z (cm), layer, yaw`, which is the start of the `(brick_id, x, y, z, yaw)` list for Matthias.
+- `BrickSceneSetup.cs` adds `BrickSnap` to every brick and wires `workspace` + `table`. Re-run **PicoBricks → Setup Brick Scene** after pulling.
+- Known limits: lifting a brick out of the middle of a stack leaves the ones above floating (they're locked); a brick half over the table edge counts as off the table.
+- **Still to do:** test in the headset (gaps, rotations, stacks of 3, off-table return, X reset, snapping after B calibration).

@@ -16,12 +16,13 @@ Part of the Creative Robotics group project (TU Delft, ARIT1507, Oct 2026).
 ## What it does right now
 - Shows your **real room** through the headset cameras (passthrough) with virtual bricks in it.
 - **Calibrate** the virtual table onto a real table by touching 4 points.
-- **10 bricks (5 × 5 × 10 cm)** you can grab, stack and drop, with physics.
+- **10 bricks (5 × 5 × 10 cm)** you can grab and place.
+- **Grid snap** (branch `snap-grid`, not yet tested in the headset): let go of a brick over the table and it turns to the nearest 90°, lines up with a 5 cm grid, lands on whatever is below it (table or another brick) and locks in place. Let go off the table and it returns to its start spot. Every placement is logged as grid position + layer + rotation, the data the robot will need.
 
 ## Controls (in the headset)
 | Button | Action |
 | --- | --- |
-| **Grip** (either hand, side button) | Grab a brick (point the laser at it, or reach out and grab it) |
+| **Grip** (either hand, side button) | Grab a brick (point the laser at it, or reach out and grab it). Release over the table to snap it to the grid |
 | **B** (right controller) | Start table calibration |
 | **Trigger** (right controller) | Record a calibration point. Order: front-left corner, front-right corner, back-left corner, floor |
 | **X** (left controller) | Put all bricks back on the table |
@@ -41,6 +42,7 @@ The **white ball** in front of the right controller is the measuring tip. The te
 | `Assets/Scripts/Passthrough.cs` | Turns the real-room camera view on and off. |
 | `Assets/Scripts/BrickControls.cs` | X and Y buttons; puts bricks back if they fall off the world. |
 | `Assets/Scripts/TableCalibration.cs` | 4-point table calibration (B + trigger). |
+| `Assets/Scripts/BrickSnap.cs` | Grid snap on release (one per brick): 5 cm grid in the table's frame, 90° turns, stacking, lock in place. Grid size is a setting on the component. |
 | `Assets/Materials/` | Colours for the bricks (Wood), table and floor. |
 | `docs/DEVLOG.md` | Development log: every step, problem and decision. |
 
@@ -65,8 +67,10 @@ The **white ball** in front of the right controller is the measuring tip. The te
 2. Get the project: GitHub Desktop → **File → Clone repository** → `jintecture/PicoBricks`.
 3. Unity Hub → **Add → Add project from disk** → the cloned folder. The first open takes a while.
 4. Ask Jin for `user.keystore`, put it in the project folder, then **Edit → Project Settings → Player → Android → Publishing Settings** → enter the passwords. Unity forgets them on every restart.
+   *No keystore yet?* Untick **Custom Keystore** there; Unity signs with your laptop's debug key. Then (a) uninstall a teammate's PicoBricks from the headset before installing yours (different signatures can't overwrite each other) and (b) **never commit `ProjectSettings/ProjectSettings.asset`** with that box unticked.
 5. Headset: developer mode on (Settings → General → About → tap *Software Version* 7×, then **USB Debug** on). Connect with the **cable that came with the Pico** (other cables may be charge-only).
 6. In Unity: **PicoBricks → Setup Brick Scene**, then **Ctrl+B** (Build And Run). Click **Yes** on the "Missing Project ID" popup. The app opens in the headset.
+   *"Could not find any valid targets" / "No Android devices connected"?* The build itself is fine (`001.apk` in the project folder); only the install failed. Keep the headset awake and USB debugging approved, then retry. Fallback: copy `001.apk` to the headset's **Download** folder via File Explorer and install it from the headset's file manager.
 
 ## Working together
 - **Before you start:** pull the latest version (GitHub Desktop → *Fetch origin* → *Pull*).
