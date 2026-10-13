@@ -127,6 +127,9 @@ Newest entries are at the bottom. Each entry ends with **Worked / Didn't work / 
 - Numbers 1–6 and the 3 crosses moved onto the frame. Old two-tray files removed (still in Git history).
 - Unity: `BrickCount` = 6, 3 per row.
 
+**Clearance 0.5 → 1.0 mm per side** (pocket 52 × 102 mm). Reasoning: timber varies by ±0.5–1 mm and swells with humidity, printed inside sizes come out 0.1–0.3 mm small, and a snug brick could drag the taped tray or make the soft gripper slip. 1 mm per side still keeps the brick within ±1 mm (~1° rotation), which the gripper tolerates.
+Added `test_fit_clearance_0.5-1.0-1.5.stl`: three small frames to try real bricks before printing the full tray.
+
 ---
 
 ## Still to do

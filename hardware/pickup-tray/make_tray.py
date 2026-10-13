@@ -20,7 +20,9 @@ TOL = 0.01
 
 # --- Brick (lying flat): 50 wide (x) x 100 long (y) x 50 high ---
 BRICK_W, BRICK_L = 50.0, 100.0
-CLEARANCE = 0.5           # play per side; use 1.0 if the timber varies by more than 1 mm
+CLEARANCE = 1.0           # play per side (pocket 52 x 102 mm). Timber varies and prints come out
+                          # slightly tight; the soft gripper tolerates the resulting +-1 mm easily
+TEST_CLEARANCES = [0.5, 1.0, 1.5]   # one small test frame per value, to try real bricks before printing the tray
 
 # --- Layout: 3 columns x 2 rows = 6 bricks ---
 COLS, ROWS = 3, 2
@@ -41,10 +43,15 @@ ENGRAVE = 0.6
 NUMBER_HEIGHT = 7.0
 CROSS_ARM, CROSS_WIDTH = 8.0, 1.0
 
-PW = BRICK_W + 2 * CLEARANCE
-PL = BRICK_L + 2 * CLEARANCE
+PW = PL = 0.0  # pocket size, set by set_clearance()
 
 log_lines = []
+
+
+def set_clearance(clearance):
+    global PW, PL
+    PW = BRICK_W + 2 * clearance
+    PL = BRICK_L + 2 * clearance
 
 
 def log(msg):
@@ -195,6 +202,33 @@ def build_tray():
     return list(result), width, depth, centres, cross_points
 
 
+def subtract(bodies, cutters):
+    cutters = [outward(c) for c in cutters if c is not None and c.IsSolid]
+    merged = rg.Brep.CreateBooleanUnion(cutters, TOL)
+    if merged:
+        cutters = [outward(m) for m in merged]
+    result = rg.Brep.CreateBooleanDifference(list(bodies), cutters, TOL)
+    if not result:
+        raise RuntimeError("boolean difference failed")
+    return list(result)
+
+
+def build_test_frame(clearance, x_offset):
+    """Small frame for one brick, holding it at two diagonal corners, labelled with its clearance."""
+    set_clearance(clearance)
+    ring = CORNER_WALL + 6.0
+    w, l = PW + 2 * ring, PL + 2 * ring
+    cx, cy = x_offset + w / 2, l / 2
+    solids = [box(x_offset, 0, 0, x_offset + w, l, PLATE)]
+    # two diagonal corners locate the brick in both directions
+    for part in corner_pieces(cx, cy)[0:2] + corner_pieces(cx, cy)[6:8]:
+        solids.append(part)
+    body = rg.Brep.CreateBooleanUnion([outward(s) for s in solids], TOL)
+    cutters = pocket_cutters(cx, cy)
+    cutters += text_cutters("%.1f" % clearance, cx, ring / 2 + 1.0, 6.0)
+    return subtract(body, cutters), w, l
+
+
 def write_stl(breps, path):
     mesh = rg.Mesh()
     for b in breps:
@@ -218,7 +252,20 @@ def write_stl(breps, path):
 
 
 def main():
-    log("Pocket %.1f x %.1f mm, frame %.1f mm, corner pieces %.1f mm high" % (PW, PL, PLATE, CORNER_HEIGHT))
+    # Test frames first: print these, try real bricks, then pick CLEARANCE
+    tests, x = [], 0.0
+    for c in TEST_CLEARANCES:
+        frame, w, l = build_test_frame(c, x)
+        tests += frame
+        x += w + 8.0
+    write_stl(tests, os.path.join(HERE, "test_fit_clearance_0.5-1.0-1.5.stl"))
+    vol = sum(b.GetVolume() for b in tests)
+    log("Test frames (clearance %s mm): %.0f x %.0f mm in total, %.0f cm3 (~%.0f g PLA if solid)"
+        % (" / ".join("%.1f" % c for c in TEST_CLEARANCES), x - 8.0, l, vol / 1000.0, vol / 1000.0 * 1.24))
+
+    set_clearance(CLEARANCE)
+    log("Tray: clearance %.1f mm per side -> pocket %.1f x %.1f mm, frame %.1f mm, corner pieces %.1f mm high"
+        % (CLEARANCE, PW, PL, PLATE, CORNER_HEIGHT))
     breps, w, d, centres, cross_points = build_tray()
     tris = write_stl(breps, os.path.join(HERE, NAME + ".stl"))
     vol = sum(b.GetVolume() for b in breps)

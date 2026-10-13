@@ -1,14 +1,15 @@
-Pocket 51.0 x 101.0 mm, frame 1.6 mm, corner pieces 12.0 mm high
+Test frames (clearance 0.5 / 1.0 / 1.5 mm): 232 x 123 mm in total, 25 cm3 (~31 g PLA if solid)
+Tray: clearance 1.0 mm per side -> pocket 52.0 x 102.0 mm, frame 1.6 mm, corner pieces 12.0 mm high
   frame + 48 corner legs merged into 1 solid(s)
-pickup_tray_bricks_1-6: 229.0 x 250.0 x 12.0 mm, 1 solid(s), closed=True, volume 76 cm3 (~94 g PLA if solid), 42262 triangles
+pickup_tray_bricks_1-6: 232.0 x 252.0 x 12.0 mm, 1 solid(s), closed=True, volume 76 cm3 (~94 g PLA if solid), 42252 triangles
 Pocket centres (brick number: x, y from the tray's front-left corner, mm):
-  1: 35.5, 60.5
-  2: 114.5, 60.5
-  3: 193.5, 60.5
-  4: 35.5, 189.5
-  5: 114.5, 189.5
-  6: 193.5, 189.5
-Calibration cross 1: 75.0, 125.0 (top of frame, z = 1.6)
-Calibration cross 2: 154.0, 125.0 (top of frame, z = 1.6)
-Calibration cross 3: 75.0, 245.0 (top of frame, z = 1.6)
+  1: 36.0, 61.0
+  2: 116.0, 61.0
+  3: 196.0, 61.0
+  4: 36.0, 191.0
+  5: 116.0, 191.0
+  6: 196.0, 191.0
+Calibration cross 1: 76.0, 126.0 (top of frame, z = 1.6)
+Calibration cross 2: 156.0, 126.0 (top of frame, z = 1.6)
+Calibration cross 3: 76.0, 247.0 (top of frame, z = 1.6)
 Done.
