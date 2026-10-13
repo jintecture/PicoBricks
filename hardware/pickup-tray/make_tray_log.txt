@@ -1,24 +1,14 @@
-Pocket 51.0 x 101.0 mm, tray height 16.0 mm
-Solid block volumes before cutting: 886, 575 cm3
-tray_A_bricks_1-6
-  60 cutters merged into 4
-  size 225.0 x 246.0 x 16.0 mm, 1 solid(s), closed=True, volume 267 cm3, 32106 triangles
-  pocket centres (brick number: x, y from tray front-left corner, mm):
-    1: 33.5, 58.5
-    2: 112.5, 58.5
-    3: 191.5, 58.5
-    4: 33.5, 187.5
-    5: 112.5, 187.5
-    6: 191.5, 187.5
-  calibration cross 1: 73.0, 20.0 (top surface, z = 16.0)
-  calibration cross 2: 73.0, 123.0 (top surface, z = 16.0)
-  calibration cross 3: 152.0, 123.0 (top surface, z = 16.0)
-tray_B_bricks_7-10
-  37 cutters merged into 1
-  size 146.0 x 246.0 x 16.0 mm, 1 solid(s), closed=True, volume 169 cm3, 21726 triangles
-  pocket centres (brick number: x, y from tray front-left corner, mm):
-    7: 33.5, 58.5
-    8: 112.5, 58.5
-    9: 33.5, 187.5
-    10: 112.5, 187.5
+Pocket 51.0 x 101.0 mm, frame 1.6 mm, corner pieces 12.0 mm high
+  frame + 48 corner legs merged into 1 solid(s)
+pickup_tray_bricks_1-6: 229.0 x 250.0 x 12.0 mm, 1 solid(s), closed=True, volume 76 cm3 (~94 g PLA if solid), 42262 triangles
+Pocket centres (brick number: x, y from the tray's front-left corner, mm):
+  1: 35.5, 60.5
+  2: 114.5, 60.5
+  3: 193.5, 60.5
+  4: 35.5, 189.5
+  5: 114.5, 189.5
+  6: 193.5, 189.5
+Calibration cross 1: 75.0, 125.0 (top of frame, z = 1.6)
+Calibration cross 2: 154.0, 125.0 (top of frame, z = 1.6)
+Calibration cross 3: 75.0, 245.0 (top of frame, z = 1.6)
 Done.

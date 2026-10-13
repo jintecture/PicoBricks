@@ -44,3 +44,7 @@ crashlytics-build.properties
 # OS clutter
 .DS_Store
 Thumbs.db
+
+# Rhino lock and backup files
+*.rhl
+*.3dmbak

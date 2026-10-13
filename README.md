@@ -16,7 +16,8 @@ Part of the Creative Robotics group project (TU Delft, ARIT1507, Oct 2026).
 ## What it does right now
 - Shows your **real room** through the headset cameras (passthrough) with virtual bricks in it.
 - **Calibrate** the virtual table onto a real table by touching 4 points.
-- **10 bricks (5 × 5 × 10 cm)** you can grab, stack and drop, with physics.
+- **6 bricks (5 × 5 × 10 cm)** you can grab, stack and drop, with physics.
+- A 3D-printable **pickup tray** for the real bricks: [`hardware/pickup-tray`](hardware/pickup-tray).
 
 ## Controls (in the headset)
 | Button | Action |
@@ -43,6 +44,7 @@ The **white ball** in front of the right controller is the measuring tip. The te
 | `Assets/Scripts/TableCalibration.cs` | 4-point table calibration (B + trigger). |
 | `Assets/Materials/` | Colours for the bricks (Wood), table and floor. |
 | `docs/DEVLOG.md` | Development log: every step, problem and decision. |
+| `hardware/pickup-tray/` | 3D-printable tray that holds the 6 real bricks for the robot (STL, Rhino model and the script that makes it) |
 
 **Settings and imported parts (normally don't touch):**
 | Path | What it is |

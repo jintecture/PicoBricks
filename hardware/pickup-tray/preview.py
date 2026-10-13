@@ -6,7 +6,7 @@ import scriptcontext as sc
 import System
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-model = Rhino.FileIO.File3dm.Read(os.path.join(HERE, "pickup_trays.3dm"))
+model = Rhino.FileIO.File3dm.Read(os.path.join(HERE, "pickup_tray_bricks_1-6.3dm"))
 doc = sc.doc
 for obj in model.Objects:
     doc.Objects.Add(obj.Geometry, obj.Attributes)

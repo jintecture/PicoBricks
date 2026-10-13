@@ -122,6 +122,11 @@ Newest entries are at the bottom. Each entry ends with **Worked / Didn't work / 
 - **Didn't work at first:** Rhino booleans failed (some cutting shapes were inside-out, and pocket boxes fully inside the tray can't be subtracted on their own). **Fix:** flip shapes to face outwards, merge all cutters into one, then subtract once.
 - Still to do: print a test pocket and check the fit with a real brick; adjust slots once Matthias knows the gripper.
 
+**Revision (same day):** we only use **6 bricks**, and the trays used too much filament (436 cm³ for both).
+- Now **one tray** (3 × 2 pockets, 229 × 250 mm, fits the A1 bed) and **minimal**: a 1.6 mm frame with open windows (bricks stand on the table), plus L-shaped corner pieces with a 3 mm lead-in. **76 cm³**, about 6× less plastic.
+- Numbers 1–6 and the 3 crosses moved onto the frame. Old two-tray files removed (still in Git history).
+- Unity: `BrickCount` = 6, 3 per row.
+
 ---
 
 ## Still to do
@@ -131,7 +136,7 @@ Newest entries are at the bottom. Each entry ends with **Worked / Didn't work / 
 - [ ] Grid snapping + rotating bricks
 - [ ] Preview, then send brick list to the robot (URSim first)
 - [ ] Test on a clean table at uni
-- [ ] Print the pickup trays (test pocket first), tape them to the robot table, teach positions
+- [ ] Print the pickup tray (measure bricks first), tape it to the robot table, teach positions
 
 ---
 
