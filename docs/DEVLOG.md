@@ -130,6 +130,11 @@ Newest entries are at the bottom. Each entry ends with **Worked / Didn't work / 
 **Clearance 0.5 → 1.0 mm per side** (pocket 52 × 102 mm). Reasoning: timber varies by ±0.5–1 mm and swells with humidity, printed inside sizes come out 0.1–0.3 mm small, and a snug brick could drag the taped tray or make the soft gripper slip. 1 mm per side still keeps the brick within ±1 mm (~1° rotation), which the gripper tolerates.
 Added `test_fit_clearance_0.5-1.0-1.5.stl`: three small frames to try real bricks before printing the full tray.
 
+**After printing the test frames:**
+- ✅ **0.5 mm per side fits the real bricks well**, so the tray went back to 0.5 (pocket 51 × 101 mm, pitch 79 × 129 mm). The 1.0 mm worry turned out unnecessary for these bricks.
+- ❌ The lead-in only covered the inner 3 mm of the 4 mm corner wall, leaving a flat ledge a brick could rest on. **Fix:** the 45° slope now starts at the **outer top edge** of each corner piece, so a brick landing on a corner slides into the pocket.
+- ❌ The test frames only had 2 (diagonal) corner pieces. **Fix:** the test frame now has all 4, same as the tray (`test_fit_0.5.stl`).
+
 ---
 
 ## Still to do

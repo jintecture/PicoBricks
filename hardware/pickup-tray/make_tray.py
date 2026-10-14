@@ -21,9 +21,9 @@ TOL = 0.01
 
 # --- Brick (lying flat): 50 wide (x) x 100 long (y) x 50 high ---
 BRICK_W, BRICK_L = 50.0, 100.0
-CLEARANCE = 1.0           # play per side (pocket 52 x 102 mm). Timber varies and prints come out
-                          # slightly tight; the soft gripper tolerates the resulting +-1 mm easily
-TEST_CLEARANCES = [0.5, 1.0, 1.5]   # one small test frame per value, to try real bricks before printing the tray
+CLEARANCE = 0.5           # play per side (pocket 51 x 101 mm). Chosen after printing test frames
+                          # with 0.5 / 1.0 / 1.5 mm: 0.5 fits the real bricks well (2026-10-14)
+TEST_CLEARANCES = [0.5]   # small test frame(s) to try before printing the whole tray
 
 # --- Layout: 3 columns x 2 rows = 6 bricks ---
 COLS, ROWS = 3, 2
@@ -34,7 +34,9 @@ MARGIN = 10.0             # frame beyond the pockets (also holds the front-row n
 PLATE = 1.6               # frame thickness
 CORNER_WALL = 4.0         # thickness of the L-shaped corner pieces
 CORNER_HEIGHT = 12.0      # height of the corner pieces above the table
-LEAD_IN = 3.0             # 45 degree chamfer on the inside top edge, guides the brick in
+# 45 degree slope from the OUTER top edge of the corner piece down to the pocket, so a brick that lands
+# on a corner slides in instead of resting on a ledge. Leaves only a 0.2 mm top edge (clean boolean + print).
+LEAD_IN = CORNER_WALL - 0.2
 LEG_X = 15.0              # corner leg length along the short side
 LEG_Y = 20.0              # corner leg length along the long side
 CORNER_RELIEF_D = 3.0     # round relief in each inside corner so brick corners don't catch
@@ -215,15 +217,13 @@ def subtract(bodies, cutters):
 
 
 def build_test_frame(clearance, x_offset):
-    """Small frame for one brick, holding it at two diagonal corners, labelled with its clearance."""
+    """Small frame for one brick, with the same four corner pieces as the tray, labelled with its clearance."""
     set_clearance(clearance)
     ring = CORNER_WALL + 6.0
     w, l = PW + 2 * ring, PL + 2 * ring
     cx, cy = x_offset + w / 2, l / 2
     solids = [box(x_offset, 0, 0, x_offset + w, l, PLATE)]
-    # two diagonal corners locate the brick in both directions
-    for part in corner_pieces(cx, cy)[0:2] + corner_pieces(cx, cy)[6:8]:
-        solids.append(part)
+    solids += corner_pieces(cx, cy)
     body = rg.Brep.CreateBooleanUnion([outward(s) for s in solids], TOL)
     cutters = pocket_cutters(cx, cy)
     cutters += text_cutters("%.1f" % clearance, cx, ring / 2 + 1.0, 6.0)
@@ -259,7 +259,7 @@ def main():
         frame, w, l = build_test_frame(c, x)
         tests += frame
         x += w + 8.0
-    write_stl(tests, os.path.join(HERE, "test_fit_clearance_0.5-1.0-1.5.stl"))
+    write_stl(tests, os.path.join(HERE, "test_fit_%s.stl" % "-".join("%.1f" % c for c in TEST_CLEARANCES)))
     vol = sum(b.GetVolume() for b in tests)
     log("Test frames (clearance %s mm): %.0f x %.0f mm in total, %.0f cm3 (~%.0f g PLA if solid)"
         % (" / ".join("%.1f" % c for c in TEST_CLEARANCES), x - 8.0, l, vol / 1000.0, vol / 1000.0 * 1.24))
