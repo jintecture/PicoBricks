@@ -65,10 +65,13 @@ public class Passthrough : MonoBehaviour
         foreach (var r in hideInPassthrough)
             if (r != null) r.enabled = !on;
 
-        // Direct plugin calls exist in both PICO SDK 2.5 (matches headset firmware 5.9.9) and 3.x
+        // PICO SDK 3.x switch (used on the Pico 4 Ultra, firmware 5.15). It only forwards changes, so flip it.
+        PXR_Manager.EnableVideoSeeThrough = !on;
+        PXR_Manager.EnableVideoSeeThrough = on;
+        // Direct plugin calls as a fallback (these were what worked on the old Pico 4, firmware 5.9.9 / SDK 2.5)
         int result = PXR_Plugin.Boundary.UPxr_SetSeeThroughBackground(on);
         PXR_Plugin.Boundary.UPxr_SetSeeThroughState(on);
-        // Note: switching see-through on this headset (firmware 5.9.9) shifts the tracking height by ~1.15 m.
+        // Note: on the old Pico 4 (firmware 5.9.9), switching see-through shifted the tracking height by ~1.15 m.
         // Heights therefore come from TableCalibration, not from the headset's floor; re-place the table after toggling.
         Debug.Log($"PicoBricks: passthrough {(on ? "ON" : "OFF")}, SetSeeThroughBackground result={result}");
     }
