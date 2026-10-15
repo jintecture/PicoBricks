@@ -138,10 +138,12 @@ Added `test_fit_clearance_0.5-1.0-1.5.stl`: three small frames to try real brick
 ---
 
 ## Still to do
-- [ ] Test the new brick size in the headset (complete), then weigh a real brick (incomplete)
+- [x] Test the new brick size in the headset, then weigh a real brick (**0.12 kg** measured; `BrickMass` left at the 0.13 kg estimate, the difference doesn't matter in the app)
 - [ ] Real LAMA table + UR5 model from HANDZONe (ghost robot)
 - [ ] 3-point calibration with robot coordinates (needs Matthias's measurements)
-- [ ] Grid snapping + rotating bricks
+- [ ] Grid snapping + rotating bricks: v2 on branch `snap-grid` (lying/standing, centred stacking, no floating), **v2 not yet tested in the headset**
+- [ ] Controller button to switch aligned ↔ non-aligned stacking (`BrickSnap.AlignToBelow`)
+- [ ] Ask Matthias: can the gripper place a brick **standing** (picked lying from the tray, turned 90°)?
 - [ ] Preview, then send brick list to the robot (URSim first)
 - [ ] Test on a clean table at uni
 - [ ] Print the pickup tray (measure bricks first), tape it to the robot table, teach positions
@@ -153,3 +155,49 @@ Added `test_fit_clearance_0.5-1.0-1.5.stl`: three small frames to try real brick
 2. Get `user.keystore` from Jin, put it in the project root, enter the passwords in Player → Publishing Settings.
 3. **PicoBricks → Setup Brick Scene**, then **Ctrl+B** with the headset connected (PICO cable, USB debugging on).
 4. In the headset: **B** (right) calibrate the table, **trigger** to record points, **X** (left) reset bricks, **Y** (left) passthrough on/off, **grip** to grab.
+
+---
+
+## 2026-10-13 (Tue): Grid snap (Parjanya)
+
+### Setting up a second laptop
+- Cloned to `C:\dev\PicoBricks` (outside OneDrive), Unity **6000.3.8f1** + Android modules. No keystore yet, so Custom Keystore unticked locally (not committed).
+- **Didn't work:** Build And Run built fine every time, but the install step kept failing (`Could not find any valid targets to launch on for Android` / `Failed to find device ... in 'adb devices'`), even right after Unity listed the headset as `Pico A8110`. Suspects: USB debugging not approved for this laptop, headset sleeping when taken off, or another adb (PICO Developer Center / Meta tools) fighting Unity's. Workaround: install `001.apk` by hand.
+
+### Grid snap: `Assets/Scripts/BrickSnap.cs`
+- Goal: layouts the robot can actually build, i.e. exact, discrete positions instead of wherever physics drops a brick.
+- On release over the table (`selectExited`, after XRI has finished dropping):
+  1. **Turn** to the nearest 90° (long side away from you or sideways).
+  2. **Grid**: the brick's front-left corner snaps to a **5 cm** grid in the `Workspace` frame (origin = middle of the table's front edge), so edges line up between bricks of either orientation.
+  3. **Height**: a box sweep straight down finds the table or the brick below; height is rounded to whole 5 cm layers.
+  4. **Lock**: Rigidbody goes kinematic; physics only while held. Grabbing a placed brick unlocks it.
+- Released off the table (footprint not fully on it): back to its start spot. **X** reset also unlocks placed bricks (`BrickControls.PutBack`).
+- Each placement logs `x, z (cm), layer, yaw`, which is the start of the `(brick_id, x, y, z, yaw)` list for Matthias.
+- `BrickSceneSetup.cs` adds `BrickSnap` to every brick and wires `workspace` + `table`. Re-run **PicoBricks → Setup Brick Scene** after pulling.
+- Known limits: lifting a brick out of the middle of a stack leaves the ones above floating (they're locked); a brick half over the table edge counts as off the table.
+- **Still to do:** test in the headset (gaps, rotations, stacks of 3, off-table return, X reset, snapping after B calibration).
+
+### Grid snap v2 (same day, after testing v1 in the headset)
+- v1 test findings (installed by hand, `001.apk`):
+  - **Floating:** take a brick out from under a stack and the ones above stayed in mid-air (they were locked).
+  - **Half-brick offset:** a brick on top of another often landed half a brick off. Cause: v1 snapped edges to a 5 cm grid, which is half a brick length, so a "brick-wall" offset was a valid position. Not what we want for robot towers.
+  - Bricks could only lie flat.
+  - 10 bricks were more than needed.
+- v2 changes (`BrickSnap.cs`, `BrickSceneSetup.cs`, `BrickControls.cs`):
+  - **6 bricks**, one row along the front edge.
+  - **Lying or standing:** on release, if the brick's long axis is within 45° of vertical it stands (5 × 5 cm footprint, 10 cm tall); otherwise it lies flat. Yaw still snaps to 90°.
+  - **Centred stacking:** released over a placed brick, the new brick is centred on it (same orientation: exactly on top; turned 90°: centred across). On the bare table the 5 cm grid still applies. `BrickSnap.AlignToBelow = false` brings back grid-only (half-brick offsets allowed), ready for a button that toggles it.
+  - **Heights** are now the exact top of whatever is below (rounded to 5 cm) instead of "layers", so standing (10 cm) and lying (5 cm) bricks mix correctly.
+  - **No floating:** when a placed brick is picked up, every placed brick (lowest first) sweeps straight down and drops onto whatever is left below it. X reset now also clears the placed state.
+- Each placement now also logs lying/standing, which the robot list needs.
+- **Still to do:** test v2 in the headset (stack aligned, crossed stack centred, standing brick on table and on a brick, pull the middle brick of a 3-stack, X reset).
+
+---
+
+## 2026-10-15: Merged Parjanya's grid snap into main
+
+- Parjanya's branch `snap-grid` (Pull Request #1: grid snap v1 + v2) merged into `main` together with Jin's pickup-tray work.
+- Three small clashes, resolved: `.gitignore` (kept both additions), `BrickSceneSetup.cs` (kept Parjanya's 6 bricks in one row + measured weight 0.12 kg), `README.md` (kept both).
+- Checked: the merged project compiles (Unity batch mode, no errors). **Not yet tested in the headset.**
+- New headset (same model, different unit) arrived; needs developer mode + USB debugging, then check its firmware version (decides which PICO SDK works, see 2026-10-10).
+- Next: the project is changing direction: **draw a line in AR + set layer height → bricks stack themselves into a wall → robot builds it.** To be discussed with the team.

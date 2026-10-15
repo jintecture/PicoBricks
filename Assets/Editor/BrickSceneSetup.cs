@@ -6,7 +6,7 @@ using UnityEngine;
 
 // Menu: PicoBricks > Setup Brick Scene
 // Replaces the plain XR Origin with the XRI Starter Assets rig (controller ray + grab),
-// keeps PXR_Manager, and adds a floor, a table and five grabbable 10 cm bricks.
+// keeps PXR_Manager, and adds a floor, a table and six grabbable 5 x 5 x 10 cm bricks that snap to a grid.
 public static class BrickSceneSetup
 {
     const string RigPath =
@@ -15,8 +15,8 @@ public static class BrickSceneSetup
     // Real bricks: 5 cm wide, 5 cm high, 10 cm deep (x, y, z in metres)
     static readonly Vector3 BrickSize = new Vector3(0.05f, 0.05f, 0.10f);
     const int BrickCount = 6;
-    const int BricksPerRow = 3;
-    // TODO(Jin): real weight to follow. Estimate: 0.25 L of timber at ~500 kg/m³ ≈ 0.13 kg
+    const int BricksPerRow = 6;
+    // Estimate 0.13 kg (0.25 L of timber at ~500 kg/m³); a real brick weighs 0.12 kg, close enough for the app
     const float BrickMass = 0.13f;
     // Default only; TableCalibration replaces it with the measured height
     const float TableHeight = 0.75f;
@@ -102,6 +102,11 @@ public static class BrickSceneSetup
                 // Hold the brick where you grabbed it instead of snapping its centre to the hand
                 grabType.GetProperty("useDynamicAttach")?.SetValue(grab, true);
             }
+
+            // Grid snap on release: 5 cm grid in the table's frame, 90° turns, drops onto what's below, then locks
+            var snap = brick.AddComponent<BrickSnap>();
+            snap.workspace = workspace.transform;
+            snap.table = table.transform;
         }
 
         if (rig != null)
