@@ -13,27 +13,28 @@ Part of the Creative Robotics group project (TU Delft, ARIT1507, Oct 2026).
 
 **Versions**
 - **v1: manual placement** (tag [`v1-manual-placement`](../../tree/v1-manual-placement), 15 Oct 2026): grab and place bricks by hand, grid snap, table calibration, pickup tray.
-- **v2: wall from a drawn line** (in progress, branch `wall-builder`): draw a line on the table, choose 1–3 layers, the 6 bricks build the wall. Iteration 1 = **rectangle** (6 × 1, 3 × 2, 2 × 3); iteration 2 = **triangle** (3 + 2 + 1, later). Then preview with an AR robot, then the real robot builds it.
+- **v2: wall from a drawn curve** (in progress, branch `wall-builder`): draw a curve on the table, choose 1–3 layers, the 6 bricks build the wall. Iteration 1 = **rectangle** (6 × 1, 3 × 2, 2 × 3); iteration 2 = **triangle** (3 + 2 + 1, later). Then preview with an AR robot, then the real robot builds it.
 
 ---
 
-## What it does right now (v2, iteration 1: rectangle)
+## What it does right now (v2, iteration 1: rectangle along a curve)
 - Shows your **real room** through the headset cameras (passthrough).
 - **Calibrate** the virtual table onto the real table by touching 4 points. A white outline shows the **build area** (the table minus a 3 cm margin).
-- **Draw a line** on the table with the controller's laser. The line's **start point is a corner of the wall**, and the wall follows the line's angle.
+- **Draw a curve** (or a straight line) on the table with the controller's laser. The bricks **mimic the curve**: it is scaled to the wall length, the bricks follow it in 10 cm steps and **always touch at one corner** (the one on the inside of each bend). The curve's start point is the wall's first corner. Logic explained in the DEVLOG.
 - **Choose the number of layers (1–3).** With 6 bricks: 1 layer = 6 bricks long (60 cm), 2 layers = 3 × 2 (30 cm), 3 layers = 2 × 3 (20 cm).
-- Press **OK (A)** and the bricks build the wall: lying flat, end to end along the line, stacked straight up. If it doesn't fit on the table, you're asked to draw again.
+- Press **OK (A)** and the bricks build the wall: lying flat, along the curve, stacked straight up. If it doesn't fit on the table, you're asked to draw again.
 - Every built wall is saved as a **brick list for the robot** (`wall_plan.json` on the headset: build order, layer, position and angle of each brick in table coordinates).
-- A 3D-printable **pickup tray** for the real bricks: [`hardware/pickup-tray`](hardware/pickup-tray).
+- The 6 bricks start in the **pickup tray** at the table's front-left corner: the same tray we 3D-print ([`hardware/pickup-tray`](hardware/pickup-tray)). They can be grabbed; building a wall takes them from the tray.
+- Bricks are **brown, 70 % see-through, with black edges**, so each brick is readable in a built wall.
 
 ## Controls (in the headset)
 | Button | Action |
 | --- | --- |
 | **B** (right controller) | Start table calibration |
-| **Trigger** (right controller) | During calibration: record a point (front-left corner, front-right corner, back-left corner, floor). Otherwise: **point at the table and hold to draw the wall line**; press again to draw a new wall |
+| **Trigger** (right controller) | During calibration: record a point (front-left corner, front-right corner, back-left corner, floor). Otherwise: **point at the table and hold to draw the wall curve**; press again to draw a new wall |
 | **Thumbstick left/right** (right) | Number of layers (1–3) |
 | **A** (right controller) | OK: build the wall |
-| **X** (left controller) | Put all bricks back in their start row |
+| **X** (left controller) | Put all bricks back in the tray |
 | **Y** (left controller) | Switch passthrough ↔ VR (re-calibrate afterwards) |
 | **Grip** | Grab a loose brick (bricks in a built wall can't be grabbed) |
 
@@ -51,7 +52,8 @@ The **white ball** in front of the right controller is the measuring tip for cal
 | `Assets/Scripts/Passthrough.cs` | Turns the real-room camera view on and off. |
 | `Assets/Scripts/BrickControls.cs` | X and Y buttons; puts bricks back if they fall off the world. |
 | `Assets/Scripts/TableCalibration.cs` | 4-point table calibration (B + trigger). |
-| `Assets/Scripts/WallBuilder.cs` | **v2:** draw the line (trigger), choose layers (thumbstick), build the wall (A), save `wall_plan.json` for the robot. Wall patterns are planned here (rectangle now, triangle next). |
+| `Assets/Scripts/WallBuilder.cs` | **v2:** draw the curve (trigger), choose layers (thumbstick), build the wall (A), save `wall_plan.json` for the robot. Wall patterns are planned here (rectangle now, triangle next). |
+| `Assets/Editor/TrayMeshImporter.cs` | Turns the tray STL into a Unity mesh, so the scene uses exactly the printed tray. |
 | `Assets/Scripts/BrickSnap.cs` | v1 only, **switched off in v2** (`AddGridSnap` in `BrickSceneSetup.cs`). Grid snap on release (one per brick): lying/standing, 90° turns, centred stacking or 5 cm table grid, lock in place, bricks above drop when one is removed. `BrickSnap.AlignToBelow` switches centred stacking off (half-brick offsets allowed). |
 | `Assets/Materials/` | Colours for the bricks (Wood), table, floor, wall line (cyan) and build area (white). |
 | `docs/DEVLOG.md` | Development log: every step, problem and decision. |

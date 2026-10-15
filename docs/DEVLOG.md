@@ -226,7 +226,41 @@ Two iterations are planned: **rectangle** first (every layer the same length), t
 - Which side of the line should the wall sit on?
 - How will the robot get `wall_plan.json`: copied by hand, Wi-Fi, through HANDZONe?
 
-**Status:** code written, not yet compiled in the editor or tested in the headset.
+**Status:** compiled; first headset test → see the next entry.
+
+---
+
+## 2026-10-15: v2 after the first headset test: curves, bricks in the tray, readable bricks
+
+**Feedback from the first test (Jin):**
+1. It has to be a **curve**, not a straight line. When the curve bends, the bricks must still **touch at at least one corner** and **mimic the curve**, whether the drawn curve is too short or too long.
+2. The user doesn't really need to handle the bricks any more, but keep them for now: they should start **in the pickup tray** (the one we designed), fixed at the **front-left corner of the table** after calibration, and still be movable.
+3. All bricks look like one big block when built (same colour, no edges). → **Black outline**, **brown at 70 % opacity**.
+
+### The curve logic (`WallBuilder.cs`)
+1. **Record:** while the trigger is held, a point is stored every ~1 cm where the laser hits the table (kept inside the build area).
+2. **Smooth:** a few passes of neighbour averaging remove hand wobble; the first and last point stay where they were drawn.
+3. **Scale to the wall ("mimic"):** with 6 bricks the length of one layer is fixed (6, 3 or 2 bricks). The curve is scaled **about its start point** until its length equals one layer of bricks. A short scribble and a long sweep give the same shape at wall size. The scaled curve is shown after building.
+4. **Walk in brick lengths:** from the start, find the point on the curve exactly 10 cm away (one brick length, measured straight), then the next, and so on. Each step is the direction of one brick. If the curve runs out (straight steps are shorter than the curve), the remaining bricks continue in the last direction.
+5. **Corner rule:** two straight bricks can't follow a bend exactly: one side gets a gap, the other would overlap. At every joint the bricks share the corner **on the inside of the bend**:
+   - curve bends away from the wall body → they share the **front** corner (gap opens at the back);
+   - curve bends towards the wall body → they share the **back** corner (gap opens at the front).
+   So they never overlap and always touch at one corner.
+6. **Layers (rectangle):** every layer repeats the same chain, stacked straight up.
+- If any brick corner ends up off the table or on the tray, nothing is built and the user is asked to draw again or choose more layers (= a shorter wall).
+- Tunable at the top of `WallBuilder.cs`: point spacing, smoothing passes, edge margin, minimum curve length.
+
+### Bricks start in the tray
+- The tray in the scene is the **actual printed tray**: `Assets/Editor/TrayMeshImporter.cs` turns `hardware/pickup-tray/pickup_tray_bricks_1-6.stl` into a Unity mesh (mm → m, Rhino z-up → Unity y-up). Unity can't import STL itself. Re-run **Setup Brick Scene** after changing the tray.
+- It sits at the table's **front-left corner** (`TableCalibration` moves it there after calibration; `trayOffset` if the real tray is taped a bit further in). It has a collider, so bricks rest in its pockets.
+- The 6 bricks start in its pockets (numbered 1–6 like the print) and can be grabbed and moved. **X** puts them back into the tray; building a wall takes them from the tray (like the robot will).
+- The drawing area now excludes the tray (starts 3 cm to the right of it).
+
+### Readable bricks
+- Brick material: URP Lit, **transparent**, brown (0.55, 0.36, 0.20) at **70 % opacity** (`Assets/Materials/BrickTransparent.mat`).
+- **Black 2 mm outline** on all 12 edges: a small mesh of 12 thin boxes (`Assets/Models/BrickOutline.asset`, made by the setup script) as a child of every brick, unlit black, rendered from both sides.
+
+**Status:** code written; compile + headset test pending.
 
 ---
 

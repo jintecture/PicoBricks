@@ -5,14 +5,22 @@ using UnityEngine;
 using UnityEngine.XR;
 using UnityEngine.XR.Interaction.Toolkit.Interactables;
 
-// Version 2, iteration 1 (rectangle): draw a line on the table, choose 1-3 layers, and the 6 bricks
-// build a straight wall along the line (6 x 1, 3 x 2 or 2 x 3).
+// Version 2, iteration 1 (rectangle): draw a CURVE on the table, choose 1-3 layers, and the 6 bricks
+// build a wall that mimics the curve (6 x 1, 3 x 2 or 2 x 3).
 //
-// Right controller:  point at the table + hold TRIGGER = draw the line
+// Right controller:  point at the table + hold TRIGGER = draw the curve
 //                    THUMBSTICK left/right            = number of layers (1-3)
 //                    A                                = OK, build the wall
-// The line's start point is a corner of the wall; the wall follows the line's angle and sits on the
-// side of the line away from you, so the drawn line stays visible along the wall's front face.
+//
+// How a curve becomes bricks (see docs/DEVLOG.md, "curve logic"):
+//  1. record a point every ~1 cm while the trigger is held
+//  2. smooth out hand wobble (start and end stay put)
+//  3. scale the curve about its start point so it is exactly as long as one layer of bricks:
+//     a short scribble and a long sweep give the same shape, at wall size ("mimic the curve")
+//  4. walk along it in steps of one brick length: each step is the direction of one brick
+//  5. neighbouring bricks always touch at one corner: the corner on the inside of the bend, so they never
+//     overlap (a wedge-shaped gap opens on the outside of the bend)
+//  6. rectangle: every layer repeats the same chain, stacked straight up
 public class WallBuilder : MonoBehaviour
 {
     public Transform workspace;          // table frame: origin = middle of the front edge, on the top surface
@@ -23,21 +31,28 @@ public class WallBuilder : MonoBehaviour
     public BrickControls controls;
     public Material lineMaterial;
     public Material zoneMaterial;
+    [Tooltip("Pickup tray at the table's front-left corner; the wall can't be built on top of it")]
+    public Transform tray;
+    public Vector2 traySize = new Vector2(0.229f, 0.250f); // x (width) and z (depth), m
 
     [Header("Bricks")]
     public Vector3 brickSize = new Vector3(0.05f, 0.05f, 0.10f); // width, height, length (m)
     public int maxLayers = 3;
 
-    [Header("Build area")]
-    [Tooltip("The wall must stay this far inside the table edges (m)")]
+    [Header("Drawing")]
+    [Tooltip("The wall must stay this far inside the table edges and away from the tray (m)")]
     public float edgeMargin = 0.03f;
-    [Tooltip("Lines shorter than this are ignored (m)")]
-    public float minLineLength = 0.05f;
+    [Tooltip("Curves shorter than this are ignored (m)")]
+    public float minCurveLength = 0.05f;
+    [Tooltip("A new point is recorded every this many metres while drawing")]
+    public float sampleSpacing = 0.01f;
+    [Tooltip("How many times the curve is smoothed (0 = use it exactly as drawn)")]
+    public int smoothingPasses = 3;
 
     enum Step { Draw, Drawing, ChooseLayers, Built }
     Step step = Step.Draw;
 
-    Vector3 lineStart, lineEnd;     // in workspace (table) space, y = 0
+    readonly List<Vector3> curve = new List<Vector3>();   // table space, y = 0
     int layers = 1;
     bool triggerWasDown, aWasDown, stickWasPushed;
 
@@ -52,7 +67,7 @@ public class WallBuilder : MonoBehaviour
         foreach (var rb in bricksParent.GetComponentsInChildren<Rigidbody>())
             bricks.Add(rb);
 
-        line = MakeLine("Wall Line", lineMaterial, 0.006f, false);
+        line = MakeLine("Wall Curve", lineMaterial, 0.006f, false);
         zone = MakeLine("Build Area", zoneMaterial != null ? zoneMaterial : lineMaterial, 0.003f, true);
         label = MakeLabel();
 
@@ -70,9 +85,10 @@ public class WallBuilder : MonoBehaviour
     void Restart()
     {
         step = Step.Draw;
+        curve.Clear();
         line.positionCount = 0;
         DrawBuildArea();
-        Say("Point at the table and hold the TRIGGER\nto draw where the wall goes");
+        Say("Point at the table and hold the TRIGGER\nto draw where the wall goes (straight or curved)");
     }
 
     void Update()
@@ -88,7 +104,7 @@ public class WallBuilder : MonoBehaviour
         bool triggerPressed = trigger && !triggerWasDown;
         bool triggerReleased = !trigger && triggerWasDown;
         bool aPressed = a && !aWasDown;
-        // Remember button states every frame, so a trigger still held from calibration doesn't start a line
+        // Remember button states every frame, so a trigger still held from calibration doesn't start a curve
         triggerWasDown = trigger;
         aWasDown = a;
 
@@ -105,10 +121,11 @@ public class WallBuilder : MonoBehaviour
             case Step.Draw:
             case Step.ChooseLayers:
             case Step.Built:
-                if (triggerPressed && PointOnTable(out lineStart))
+                if (triggerPressed && PointOnTable(out var first))
                 {
-                    if (step == Step.Built && controls != null) controls.ResetBricks(); // bricks back to the start row
-                    lineEnd = lineStart;
+                    if (step == Step.Built && controls != null) controls.ResetBricks(); // bricks back into the tray
+                    curve.Clear();
+                    curve.Add(first);
                     step = Step.Drawing;
                     Say("Drawing... release the trigger at the end of the wall");
                 }
@@ -120,9 +137,10 @@ public class WallBuilder : MonoBehaviour
                 break;
 
             case Step.Drawing:
-                if (PointOnTable(out var p)) lineEnd = p;
-                ShowLine();
-                if (triggerReleased) FinishLine();
+                if (PointOnTable(out var p) && Vector3.Distance(p, curve[curve.Count - 1]) >= sampleSpacing)
+                    curve.Add(p);
+                ShowCurve(curve);
+                if (triggerReleased) FinishCurve();
                 break;
         }
     }
@@ -145,15 +163,17 @@ public class WallBuilder : MonoBehaviour
         return true;
     }
 
-    void FinishLine()
+    void FinishCurve()
     {
-        if (Vector3.Distance(lineStart, lineEnd) < minLineLength)
+        if (curve.Count < 2 || Length(curve) < minCurveLength)
         {
             step = Step.Draw;
             line.positionCount = 0;
-            Say("That line was too short, draw again\n(hold the TRIGGER while pointing at the table)");
+            Say("That was too short, draw again\n(hold the TRIGGER while pointing at the table)");
             return;
         }
+        Smooth(curve, smoothingPasses);
+        ShowCurve(curve);
         step = Step.ChooseLayers;
         ShowLayerChoice();
     }
@@ -175,19 +195,28 @@ public class WallBuilder : MonoBehaviour
     {
         int perLayer = BrickCount / layers;
         Say($"Layers:  <  {layers}  >   (thumbstick left/right)\n" +
-            $"{perLayer} bricks long x {layers} high = {perLayer * brickSize.z * 100f:F0} cm wall\n" +
+            $"{perLayer} bricks along your curve x {layers} high\n" +
             "A = OK      TRIGGER = draw again");
     }
 
     // ---------- building ----------
 
+    struct BrickPose
+    {
+        public int layer, index;
+        public Vector3 position;   // centre, table space (m)
+        public Quaternion rotation;
+        public float yawDeg;
+        public Vector3[] footprint; // 4 corners on the table, for the fit check
+    }
+
     void Build()
     {
-        var plan = PlanRectangle(layers);
+        var plan = PlanRectangle(layers, out var wallCurve);
         if (plan == null)
         {
-            Say($"A {BrickCount / layers}-brick wall doesn't fit on the table there.\n" +
-                "Draw again (TRIGGER) or fewer bricks per layer (more layers)");
+            Say($"A {BrickCount / layers}-brick wall along that curve doesn't fit on the table.\n" +
+                "Draw again (TRIGGER) or choose more layers (shorter wall)");
             return;
         }
 
@@ -206,74 +235,164 @@ public class WallBuilder : MonoBehaviour
             rb.rotation = rot;
         }
 
+        ShowCurve(wallCurve); // the curve at wall size, as the bricks follow it
         step = Step.Built;
         int perLayer = BrickCount / layers;
         Say($"Wall built: {perLayer} x {layers}\nTRIGGER = draw a new wall      X = bricks back");
         SavePlan(plan, perLayer);
     }
 
-    struct BrickPose
-    {
-        public int layer, index;
-        public Vector3 position;   // centre, table space (m)
-        public Quaternion rotation;
-        public float yawDeg;
-    }
-
-    // Rectangle: every layer has the same number of bricks, end to end along the line, stacked straight up.
+    // Rectangle: every layer has the same chain of bricks along the curve, stacked straight up.
     // Returns null if the wall would stick out of the build area.
-    List<BrickPose> PlanRectangle(int layerCount)
+    List<BrickPose> PlanRectangle(int layerCount, out List<Vector3> wallCurve)
     {
         int perLayer = BrickCount / layerCount;
-        Vector3 dir = lineEnd - lineStart;
-        dir.y = 0f;
-        dir.Normalize();
+        float L = brickSize.z, W = brickSize.x;
 
-        // Side of the line away from the viewer, so the line stays visible along the wall's front face
-        Vector3 side = Vector3.Cross(Vector3.up, dir);
+        // 3. scale the drawn curve about its start so its length = one layer of bricks
+        wallCurve = new List<Vector3>(curve.Count);
+        float scale = perLayer * L / Length(curve);
+        foreach (var p in curve) wallCurve.Add(curve[0] + (p - curve[0]) * scale);
+
+        // 4. walk along it in brick-length steps -> one direction per brick
+        var dirs = ChordDirections(wallCurve, L, perLayer);
+
+        // The wall body sits on the side of the curve away from the viewer (decided at the start),
+        // so the drawn curve stays visible along the wall's front
+        float sideSign = 1f;
         var cam = Camera.main;
         if (cam != null)
         {
-            Vector3 viewer = workspace.InverseTransformPoint(cam.transform.position) - lineStart;
-            if (Vector3.Dot(side, viewer) > 0f) side = -side;
+            Vector3 viewer = workspace.InverseTransformPoint(cam.transform.position) - curve[0];
+            if (Vector3.Dot(Vector3.Cross(Vector3.up, dirs[0]), viewer) > 0f) sideSign = -1f;
+        }
+        Vector3 Side(Vector3 d) => Vector3.Cross(Vector3.up, d) * sideSign;
+
+        // 5. chain the bricks; each one touches the previous at the corner on the inside of the bend
+        var chain = new List<(Vector3 frontStart, Vector3 dir)>();
+        Vector3 frontStart = wallCurve[0];
+        for (int i = 0; i < perLayer; i++)
+        {
+            Vector3 d = dirs[i];
+            if (i > 0)
+            {
+                var (prevStart, prevDir) = chain[i - 1];
+                Vector3 prevFrontEnd = prevStart + prevDir * L;
+                bool bendsTowardBody = Vector3.Dot(d, Side(prevDir)) > 0f;
+                frontStart = bendsTowardBody
+                    // inside of the bend is the back: share the back corner
+                    ? prevFrontEnd + Side(prevDir) * W - Side(d) * W
+                    // inside of the bend is the front: share the front corner
+                    : prevFrontEnd;
+            }
+            chain.Add((frontStart, d));
         }
 
-        var rotation = Quaternion.LookRotation(dir, Vector3.up); // brick length (local z) along the line
-        float yaw = rotation.eulerAngles.y;
-
         GetBuildArea(out float minX, out float maxX, out float minZ, out float maxZ);
-        float tol = 0.001f;
-        Vector3 wallEnd = lineStart + dir * (perLayer * brickSize.z);
-        foreach (var corner in new[] { lineStart, wallEnd, lineStart + side * brickSize.x, wallEnd + side * brickSize.x })
-            if (corner.x < minX - tol || corner.x > maxX + tol || corner.z < minZ - tol || corner.z > maxZ + tol)
-                return null;
-
+        const float tol = 0.001f;
         var plan = new List<BrickPose>();
         for (int layer = 0; layer < layerCount; layer++)
             for (int i = 0; i < perLayer; i++)
             {
-                Vector3 centre = lineStart
-                                 + dir * (brickSize.z * (i + 0.5f))
-                                 + side * (brickSize.x * 0.5f);
+                var (start, d) = chain[i];
+                Vector3 side = Side(d);
+                Vector3 centre = start + d * (L / 2f) + side * (W / 2f);
+                var corners = new[] { start, start + d * L, start + d * L + side * W, start + side * W };
+                foreach (var c in corners)
+                    if (c.x < minX - tol || c.x > maxX + tol || c.z < minZ - tol || c.z > maxZ + tol)
+                        return null;
                 centre.y = brickSize.y * (layer + 0.5f) + 0.0005f;
-                plan.Add(new BrickPose { layer = layer, index = i, position = centre, rotation = rotation, yawDeg = yaw });
+                var rotation = Quaternion.LookRotation(d, Vector3.up); // brick length (local z) along d
+                plan.Add(new BrickPose
+                {
+                    layer = layer, index = i, position = centre, rotation = rotation,
+                    yawDeg = rotation.eulerAngles.y, footprint = corners
+                });
             }
         return plan;
     }
 
-    // The brick list for the robot: build order (bottom layer first, along the line), table-space coordinates
+    // Steps of straight length L along the polyline, starting at its first point. If the curve runs out
+    // (chords are shorter than the arc), the remaining bricks continue in the last direction.
+    static List<Vector3> ChordDirections(List<Vector3> pts, float L, int count)
+    {
+        var dirs = new List<Vector3>();
+        Vector3 current = pts[0];
+        int seg = 0;
+        Vector3 lastDir = (pts[pts.Count - 1] - pts[0]).normalized;
+        for (int i = 0; i < count; i++)
+        {
+            bool found = false;
+            for (; seg < pts.Count - 1; seg++)
+            {
+                // first point on segment seg..seg+1 that is exactly L away from `current`
+                if (IntersectSegmentCircle(pts[seg], pts[seg + 1], current, L, out var hit))
+                {
+                    Vector3 d = (hit - current).normalized;
+                    dirs.Add(d);
+                    lastDir = d;
+                    current = hit;
+                    found = true;
+                    break;
+                }
+            }
+            if (!found)
+            {
+                dirs.Add(lastDir);
+                current += lastDir * L;
+            }
+        }
+        return dirs;
+    }
+
+    // Point on segment a-b (in the xz plane) at distance r from c, the furthest along the segment
+    static bool IntersectSegmentCircle(Vector3 a, Vector3 b, Vector3 c, float r, out Vector3 hit)
+    {
+        hit = Vector3.zero;
+        Vector3 ab = b - a, ac = a - c;
+        float qa = Vector3.Dot(ab, ab);
+        if (qa < 1e-10f) return false;
+        float qb = 2f * Vector3.Dot(ab, ac);
+        float qc = Vector3.Dot(ac, ac) - r * r;
+        float disc = qb * qb - 4f * qa * qc;
+        if (disc < 0f) return false;
+        float t = (-qb + Mathf.Sqrt(disc)) / (2f * qa); // the exit point (further along)
+        if (t < 0f || t > 1f) return false;
+        hit = a + ab * t;
+        return true;
+    }
+
+    static float Length(List<Vector3> pts)
+    {
+        float sum = 0f;
+        for (int i = 1; i < pts.Count; i++) sum += Vector3.Distance(pts[i - 1], pts[i]);
+        return sum;
+    }
+
+    // Moving average over neighbours; the first and last point stay where they were drawn
+    static void Smooth(List<Vector3> pts, int passes)
+    {
+        for (int pass = 0; pass < passes; pass++)
+        {
+            var copy = new List<Vector3>(pts);
+            for (int i = 1; i < pts.Count - 1; i++)
+                pts[i] = (copy[i - 1] + copy[i] * 2f + copy[i + 1]) / 4f;
+        }
+    }
+
+    // The brick list for the robot: build order (bottom layer first, along the curve), table-space coordinates
     void SavePlan(List<BrickPose> plan, int perLayer)
     {
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
         var json = new StringBuilder();
         json.Append("{\n  \"pattern\": \"rectangle\",\n");
-        json.AppendFormat(System.Globalization.CultureInfo.InvariantCulture,
-            "  \"layers\": {0},\n  \"bricksPerLayer\": {1},\n", layers, perLayer);
+        json.AppendFormat(inv, "  \"layers\": {0},\n  \"bricksPerLayer\": {1},\n", layers, perLayer);
         json.Append("  \"frame\": \"table: origin = middle of the front edge on the table top, x right, y up, z away from the front edge, metres\",\n");
         json.Append("  \"bricks\": [\n");
         for (int i = 0; i < plan.Count; i++)
         {
             var b = plan[i];
-            json.AppendFormat(System.Globalization.CultureInfo.InvariantCulture,
+            json.AppendFormat(inv,
                 "    {{ \"order\": {0}, \"layer\": {1}, \"x\": {2:F4}, \"y\": {3:F4}, \"z\": {4:F4}, \"yaw_deg\": {5:F1} }}{6}\n",
                 i + 1, b.layer + 1, b.position.x, b.position.y, b.position.z, b.yawDeg, i < plan.Count - 1 ? "," : "");
         }
@@ -284,13 +403,15 @@ public class WallBuilder : MonoBehaviour
         Debug.Log($"PicoBricks: wall {perLayer} x {layers} built, plan saved to {path}\n{json}");
     }
 
-    // ---------- build area, line and label ----------
+    // ---------- build area, curve and label ----------
 
+    // The table minus a margin, and right of the pickup tray (which sits at the front-left corner)
     void GetBuildArea(out float minX, out float maxX, out float minZ, out float maxZ)
     {
-        float halfWidth = table.localScale.x / 2f - edgeMargin;
-        minX = -halfWidth;
-        maxX = halfWidth;
+        float halfWidth = table.localScale.x / 2f;
+        minX = -halfWidth + edgeMargin;
+        if (tray != null) minX = Mathf.Max(minX, tray.localPosition.x + traySize.x + edgeMargin);
+        maxX = halfWidth - edgeMargin;
         minZ = edgeMargin;
         maxZ = table.localScale.z - edgeMargin;
     }
@@ -306,11 +427,11 @@ public class WallBuilder : MonoBehaviour
         zone.SetPosition(3, workspace.TransformPoint(new Vector3(minX, y, maxZ)));
     }
 
-    void ShowLine()
+    void ShowCurve(List<Vector3> pts)
     {
-        line.positionCount = 2;
-        line.SetPosition(0, workspace.TransformPoint(lineStart + Vector3.up * 0.003f));
-        line.SetPosition(1, workspace.TransformPoint(lineEnd + Vector3.up * 0.003f));
+        line.positionCount = pts.Count;
+        for (int i = 0; i < pts.Count; i++)
+            line.SetPosition(i, workspace.TransformPoint(pts[i] + Vector3.up * 0.003f));
     }
 
     LineRenderer MakeLine(string name, Material material, float width, bool loop)
@@ -323,6 +444,7 @@ public class WallBuilder : MonoBehaviour
         lr.loop = loop;
         lr.useWorldSpace = true;
         lr.positionCount = 0;
+        lr.numCornerVertices = 2;
         lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         lr.receiveShadows = false;
         return lr;
