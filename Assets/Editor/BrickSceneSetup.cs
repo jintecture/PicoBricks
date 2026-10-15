@@ -6,7 +6,8 @@ using UnityEngine;
 
 // Menu: PicoBricks > Setup Brick Scene
 // Replaces the plain XR Origin with the XRI Starter Assets rig (controller ray + grab),
-// keeps PXR_Manager, and adds a floor, a table and six grabbable 5 x 5 x 10 cm bricks that snap to a grid.
+// keeps PXR_Manager, and adds a floor, a table, six 5 x 5 x 10 cm bricks and the wall builder
+// (draw a line, choose 1-3 layers, the bricks build the wall).
 public static class BrickSceneSetup
 {
     const string RigPath =
@@ -20,6 +21,9 @@ public static class BrickSceneSetup
     const float BrickMass = 0.13f;
     // Default only; TableCalibration replaces it with the measured height
     const float TableHeight = 0.75f;
+    // Grid snap (BrickSnap.cs, version 1) is off from version 2 on: in the headset placed bricks ignored gravity
+    // and some floated, and in version 2 the wall is generated from a drawn line instead of placed by hand.
+    static readonly bool AddGridSnap = false;
 
     [MenuItem("PicoBricks/Setup Brick Scene")]
     static void Setup()
@@ -104,9 +108,12 @@ public static class BrickSceneSetup
             }
 
             // Grid snap on release: 5 cm grid in the table's frame, 90° turns, drops onto what's below, then locks
-            var snap = brick.AddComponent<BrickSnap>();
-            snap.workspace = workspace.transform;
-            snap.table = table.transform;
+            if (AddGridSnap)
+            {
+                var snap = brick.AddComponent<BrickSnap>();
+                snap.workspace = workspace.transform;
+                snap.table = table.transform;
+            }
         }
 
         if (rig != null)
@@ -131,6 +138,19 @@ public static class BrickSceneSetup
             calibration.passthrough = passthrough;
             if (calibration.rightController == null)
                 Debug.LogWarning("PicoBricks: 'Right Controller' not found in the rig, table calibration won't work");
+
+            // Version 2: draw a line on the table, choose layers, the bricks build the wall
+            var wall = rig.GetComponent<WallBuilder>();
+            if (wall == null) wall = Undo.AddComponent<WallBuilder>(rig);
+            wall.workspace = workspace.transform;
+            wall.table = table.transform;
+            wall.bricksParent = bricks.transform;
+            wall.rightController = calibration.rightController;
+            wall.calibration = calibration;
+            wall.controls = controls;
+            wall.brickSize = BrickSize;
+            wall.lineMaterial = GetOrCreateMaterial("Assets/Materials/WallLine.mat", new Color(0.1f, 0.85f, 1f), unlit: true);
+            wall.zoneMaterial = GetOrCreateMaterial("Assets/Materials/BuildArea.mat", new Color(1f, 1f, 1f), unlit: true);
         }
 
         var scene = EditorSceneManager.GetActiveScene();
@@ -204,14 +224,15 @@ public static class BrickSceneSetup
         return starterRig.gameObject;
     }
 
-    static Material GetOrCreateMaterial(string path, Color color)
+    static Material GetOrCreateMaterial(string path, Color color, bool unlit = false)
     {
         var mat = AssetDatabase.LoadAssetAtPath<Material>(path);
         if (mat != null) return mat;
 
         if (!AssetDatabase.IsValidFolder("Assets/Materials"))
             AssetDatabase.CreateFolder("Assets", "Materials");
-        mat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+        // Unlit for lines: always the same bright colour, also in passthrough
+        mat = new Material(Shader.Find(unlit ? "Universal Render Pipeline/Unlit" : "Universal Render Pipeline/Lit"));
         mat.SetColor("_BaseColor", color);
         AssetDatabase.CreateAsset(mat, path);
         return mat;

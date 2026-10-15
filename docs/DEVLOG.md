@@ -184,6 +184,52 @@ Added `test_fit_clearance_0.5-1.0-1.5.stl`: three small frames to try real brick
 
 ---
 
+## 2026-10-15: New headset, Pico 4 Ultra Enterprise
+
+- The new headset is **not** the same model: **Pico 4 Ultra Enterprise** (A9210), firmware **5.15.5**, Android 14. TU Delft-managed (their apps are installed; we only ever install/remove PicoBricks). **We use this one until the end.**
+- USB debugging was already on and the laptop was already allowed.
+- **Decision:** switch back to **PICO SDK 3.4.0**. SDK 2.5 was only chosen for the old headset's old firmware (5.9.9); the Ultra needs SDK 3.0+ and its firmware meets 3.x's requirement (5.14+).
+- `Passthrough.cs` now also uses SDK 3.x's official `PXR_Manager.EnableVideoSeeThrough`, keeping the direct calls as a fallback.
+- PICO Project Validation on 3.4 suggested: HDR off for URP (same cause as our black passthrough), multiview stereo rendering, SSAO off. Applied.
+- Build installed and runs on the Ultra.
+- Feedback on grid snap v2 in the headset (Jin): placed bricks no longer follow gravity and some float. Not fixed, because the project moves to the wall-drawing version next; grid snap is switched off there.
+
+---
+
+## 2026-10-15: Version 2, the wall from a drawn line (iteration 1: rectangle)
+
+**The new idea:** instead of placing bricks one by one, the user describes the wall and the app works out where every brick goes. The same list then drives the robot.
+1. Calibrate the table (as before).
+2. **Draw a line** on the table where the wall should go.
+3. **Choose the layer height** (1–3 layers).
+4. Press **OK**, and the bricks appear as a wall along the line.
+5. (Later) preview with an AR robot, then the real robot builds it.
+
+Two iterations are planned: **rectangle** first (every layer the same length), then **triangle** (3 + 2 + 1 = 6 bricks, each layer shorter).
+
+**Rectangle with 6 bricks:** bricks per layer = 6 ÷ layers, so 1 layer = 6 × 1 (60 cm long), 2 layers = 3 × 2 (30 cm), 3 layers = 2 × 3 (20 cm). Very limited, but enough to get the whole pipeline (draw → plan → AR → robot) working first.
+
+**How it works now (`Assets/Scripts/WallBuilder.cs`):**
+- **Drawing:** point the right controller's laser at the table and hold the **trigger**; release at the end. The point is where the ray hits the table top, so you can draw from a comfortable distance. Both ends are kept inside the **build area** (table minus 3 cm, shown as a white outline).
+- **Layers:** right **thumbstick** left/right (1–3). The floating text shows the resulting wall, e.g. "3 bricks long x 2 high = 30 cm wall". **A** = OK.
+- **Wall:** bricks lie flat, long side along the line, end to end, stacked straight up (no overlap between layers yet). The wall's angle follows the line.
+- **"One corner always touching":** the line's **start point is the wall's front corner**, and the wall's front face lies on the line. The wall sits on the side of the line *away from the user*, so the drawn line stays visible along its front.
+- The **line's length doesn't set the wall length** yet: with 6 bricks the length comes from the layer count. The line gives the start point and the direction.
+- If the wall would stick out of the table, nothing is built and the user is asked to draw again or choose more layers.
+- Built bricks are locked in place and can't be grabbed. **Trigger** draws a new wall (bricks go back first), **X** puts all bricks back.
+- **Brick list for the robot:** each build is saved as `wall_plan.json` on the headset (`/sdcard/Android/data/com.lama.picobricks/files/`): pattern, layers, and for every brick its build order, layer, position (x, y, z in metres, table frame: origin = middle of the front edge on the table top) and angle (yaw). Also printed to the log. This is the start of the interface with Matthias.
+- Grid snap (`BrickSnap.cs`, v1) is **switched off** (`AddGridSnap = false` in `BrickSceneSetup.cs`): it made placed bricks ignore gravity and float, and isn't needed when the wall is generated.
+
+**Open questions for the team:**
+- Should the wall be centred on the line instead of starting at it? Should the line's length matter (e.g. spacing bricks out)?
+- Should layers overlap like real masonry (half-brick offset)? That changes how many bricks fit per layer.
+- Which side of the line should the wall sit on?
+- How will the robot get `wall_plan.json`: copied by hand, Wi-Fi, through HANDZONe?
+
+**Status:** code written, not yet compiled in the editor or tested in the headset.
+
+---
+
 ## 2026-10-15: Pickup tray, big slopes that meet in a ridge
 
 - Problem with the printed version: the lead-in slopes were small (only on the 4 mm corner pieces), so a brick could still land on top of a corner instead of sliding in.
@@ -199,7 +245,9 @@ Added `test_fit_clearance_0.5-1.0-1.5.stl`: three small frames to try real brick
 - [x] Grid snapping + rotating bricks (Parjanya, merged into `main` on 15 Oct)
 - [ ] **Test grid snap v2 in the headset** (stack aligned, crossed stack centred, standing brick, pull the middle of a 3-stack, X reset)
 - [ ] **New headset:** developer mode + USB debugging, check firmware version, build PicoBricks onto it
-- [ ] **New direction (to discuss with the team):** draw a line in AR, set layer height, bricks stack themselves into a wall, preview with AR robot, real robot builds it
+- [ ] **v2 rectangle:** test draw line → layers → build in the headset (branch `wall-builder`), then merge into main
+- [ ] **v2 triangle:** 3 + 2 + 1 pattern
+- [ ] Send `wall_plan.json` to the robot (agree format + transport with Matthias)
 - [ ] Real LAMA table + UR5 model from HANDZONe (ghost robot)
 - [ ] 3-point calibration with robot coordinates (needs Matthias's measurements)
 - [ ] Controller button to switch aligned ↔ non-aligned stacking (`BrickSnap.AlignToBelow`)

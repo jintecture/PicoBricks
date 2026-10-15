@@ -29,6 +29,12 @@ public class TableCalibration : MonoBehaviour
     int step = -1; // -1 = not calibrating
     bool bWasDown, triggerWasDown;
 
+    /// <summary>True while the user is touching calibration points (other tools should ignore the trigger).</summary>
+    public bool IsCalibrating => step >= 0;
+
+    /// <summary>Raised after the table has been placed on the real table.</summary>
+    public event System.Action Placed;
+
     Transform tip;
     TextMesh label;
 
@@ -133,5 +139,6 @@ public class TableCalibration : MonoBehaviour
 
         label.text = $"Table placed: {width * 100f:F0} x {depth * 100f:F0} cm, {height * 100f:F0} cm high\nB = redo";
         Debug.Log($"PicoBricks: table placed at {frontMiddle}, {width:F2} x {depth:F2} m, height {height:F2} m");
+        Placed?.Invoke();
     }
 }
