@@ -260,7 +260,7 @@ Two iterations are planned: **rectangle** first (every layer the same length), t
 - Brick material: URP Lit, **transparent**, brown (0.55, 0.36, 0.20) at **70 % opacity** (`Assets/Materials/BrickTransparent.mat`).
 - **Black 2 mm outline** on all 12 edges: a small mesh of 12 thin boxes (`Assets/Models/BrickOutline.asset`, made by the setup script) as a child of every brick, unlit black, rendered from both sides.
 
-**Status:** code written; compile + headset test pending.
+**Status:** ✅ tested in the Pico 4 Ultra (15 Oct): curves, tray and readable bricks work ("this is good", Jin).
 
 ---
 
