@@ -111,53 +111,6 @@ Newest entries are at the bottom. Each entry ends with **Worked / Didn't work / 
 
 ---
 
-## 2026-10-14: 3D-printed pickup trays
-
-- **Problem:** the robot needs every brick to start in exactly the same spot. **Decision:** 3D-printed trays (PLA, Bambu A1), fixed to the robot table with double-sided tape.
-- Generated in **Rhino 8 by a script** (`hardware/pickup-tray/make_tray.py`) instead of modelling by hand: exact, and easy to change (clearance, slot widths) by editing numbers and re-running. Output: STL files ready for Bambu Studio. Details, print settings and pocket coordinates: [`hardware/pickup-tray/README.md`](../hardware/pickup-tray/README.md).
-- Design choices:
-  - **Two trays** (6 + 4 pockets), because 10 don't fit on the 256 × 256 mm bed.
-  - Bricks held at the **corners only**, with a 45° lead-in so they self-centre; **open slots on every side** because we don't know the gripper's finger size yet.
-  - **Engraved numbers 1–10** = brick IDs; **3 crosshairs on Tray A** = shared reference points for the robot and the AR calibration.
-- **Didn't work at first:** Rhino booleans failed (some cutting shapes were inside-out, and pocket boxes fully inside the tray can't be subtracted on their own). **Fix:** flip shapes to face outwards, merge all cutters into one, then subtract once.
-- Still to do: print a test pocket and check the fit with a real brick; adjust slots once Matthias knows the gripper.
-
-**Revision (same day):** we only use **6 bricks**, and the trays used too much filament (436 cm³ for both).
-- Now **one tray** (3 × 2 pockets, 229 × 250 mm, fits the A1 bed) and **minimal**: a 1.6 mm frame with open windows (bricks stand on the table), plus L-shaped corner pieces with a 3 mm lead-in. **76 cm³**, about 6× less plastic.
-- Numbers 1–6 and the 3 crosses moved onto the frame. Old two-tray files removed (still in Git history).
-- Unity: `BrickCount` = 6, 3 per row.
-
-**Clearance 0.5 → 1.0 mm per side** (pocket 52 × 102 mm). Reasoning: timber varies by ±0.5–1 mm and swells with humidity, printed inside sizes come out 0.1–0.3 mm small, and a snug brick could drag the taped tray or make the soft gripper slip. 1 mm per side still keeps the brick within ±1 mm (~1° rotation), which the gripper tolerates.
-Added `test_fit_clearance_0.5-1.0-1.5.stl`: three small frames to try real bricks before printing the full tray.
-
-**After printing the test frames:**
-- ✅ **0.5 mm per side fits the real bricks well**, so the tray went back to 0.5 (pocket 51 × 101 mm, pitch 79 × 129 mm). The 1.0 mm worry turned out unnecessary for these bricks.
-- ❌ The lead-in only covered the inner 3 mm of the 4 mm corner wall, leaving a flat ledge a brick could rest on. **Fix:** the 45° slope now starts at the **outer top edge** of each corner piece, so a brick landing on a corner slides into the pocket.
-- ❌ The test frames only had 2 (diagonal) corner pieces. **Fix:** the test frame now has all 4, same as the tray (`test_fit_0.5.stl`).
-
----
-
-## Still to do
-- [x] Test the new brick size in the headset, then weigh a real brick (**0.12 kg** measured; `BrickMass` left at the 0.13 kg estimate, the difference doesn't matter in the app)
-- [ ] Real LAMA table + UR5 model from HANDZONe (ghost robot)
-- [ ] 3-point calibration with robot coordinates (needs Matthias's measurements)
-- [ ] Grid snapping + rotating bricks: v2 on branch `snap-grid` (lying/standing, centred stacking, no floating), **v2 not yet tested in the headset**
-- [ ] Controller button to switch aligned ↔ non-aligned stacking (`BrickSnap.AlignToBelow`)
-- [ ] Ask Matthias: can the gripper place a brick **standing** (picked lying from the tray, turned 90°)?
-- [ ] Preview, then send brick list to the robot (URSim first)
-- [ ] Test on a clean table at uni
-- [ ] Print the pickup tray (measure bricks first), tape it to the robot table, teach positions
-
----
-
-## How to run it (short version)
-1. Unity Hub → Add project from disk → this folder (Unity **6000.3.8f1** with Android modules).
-2. Get `user.keystore` from Jin, put it in the project root, enter the passwords in Player → Publishing Settings.
-3. **PicoBricks → Setup Brick Scene**, then **Ctrl+B** with the headset connected (PICO cable, USB debugging on).
-4. In the headset: **B** (right) calibrate the table, **trigger** to record points, **X** (left) reset bricks, **Y** (left) passthrough on/off, **grip** to grab.
-
----
-
 ## 2026-10-13 (Tue): Grid snap (Parjanya)
 
 ### Setting up a second laptop
@@ -194,6 +147,32 @@ Added `test_fit_clearance_0.5-1.0-1.5.stl`: three small frames to try real brick
 
 ---
 
+## 2026-10-14: 3D-printed pickup trays
+
+- **Problem:** the robot needs every brick to start in exactly the same spot. **Decision:** 3D-printed trays (PLA, Bambu A1), fixed to the robot table with double-sided tape.
+- Generated in **Rhino 8 by a script** (`hardware/pickup-tray/make_tray.py`) instead of modelling by hand: exact, and easy to change (clearance, slot widths) by editing numbers and re-running. Output: STL files ready for Bambu Studio. Details, print settings and pocket coordinates: [`hardware/pickup-tray/README.md`](../hardware/pickup-tray/README.md).
+- Design choices:
+  - **Two trays** (6 + 4 pockets), because 10 don't fit on the 256 × 256 mm bed.
+  - Bricks held at the **corners only**, with a 45° lead-in so they self-centre; **open slots on every side** because we don't know the gripper's finger size yet.
+  - **Engraved numbers 1–10** = brick IDs; **3 crosshairs on Tray A** = shared reference points for the robot and the AR calibration.
+- **Didn't work at first:** Rhino booleans failed (some cutting shapes were inside-out, and pocket boxes fully inside the tray can't be subtracted on their own). **Fix:** flip shapes to face outwards, merge all cutters into one, then subtract once.
+- Still to do: print a test pocket and check the fit with a real brick; adjust slots once Matthias knows the gripper.
+
+**Revision (same day):** we only use **6 bricks**, and the trays used too much filament (436 cm³ for both).
+- Now **one tray** (3 × 2 pockets, 229 × 250 mm, fits the A1 bed) and **minimal**: a 1.6 mm frame with open windows (bricks stand on the table), plus L-shaped corner pieces with a 3 mm lead-in. **76 cm³**, about 6× less plastic.
+- Numbers 1–6 and the 3 crosses moved onto the frame. Old two-tray files removed (still in Git history).
+- Unity: `BrickCount` = 6, 3 per row.
+
+**Clearance 0.5 → 1.0 mm per side** (pocket 52 × 102 mm). Reasoning: timber varies by ±0.5–1 mm and swells with humidity, printed inside sizes come out 0.1–0.3 mm small, and a snug brick could drag the taped tray or make the soft gripper slip. 1 mm per side still keeps the brick within ±1 mm (~1° rotation), which the gripper tolerates.
+Added `test_fit_clearance_0.5-1.0-1.5.stl`: three small frames to try real bricks before printing the full tray.
+
+**After printing the test frames:**
+- ✅ **0.5 mm per side fits the real bricks well**, so the tray went back to 0.5 (pocket 51 × 101 mm, pitch 79 × 129 mm). The 1.0 mm worry turned out unnecessary for these bricks.
+- ❌ The lead-in only covered the inner 3 mm of the 4 mm corner wall, leaving a flat ledge a brick could rest on. **Fix:** the 45° slope now starts at the **outer top edge** of each corner piece, so a brick landing on a corner slides into the pocket.
+- ❌ The test frames only had 2 (diagonal) corner pieces. **Fix:** the test frame now has all 4, same as the tray (`test_fit_0.5.stl`).
+
+---
+
 ## 2026-10-15: Merged Parjanya's grid snap into main
 
 - Parjanya's branch `snap-grid` (Pull Request #1: grid snap v1 + v2) merged into `main` together with Jin's pickup-tray work.
@@ -201,3 +180,28 @@ Added `test_fit_clearance_0.5-1.0-1.5.stl`: three small frames to try real brick
 - Checked: the merged project compiles (Unity batch mode, no errors). **Not yet tested in the headset.**
 - New headset (same model, different unit) arrived; needs developer mode + USB debugging, then check its firmware version (decides which PICO SDK works, see 2026-10-10).
 - Next: the project is changing direction: **draw a line in AR + set layer height → bricks stack themselves into a wall → robot builds it.** To be discussed with the team.
+- Tagged this state as **`v1-manual-placement`** (GitHub → Tags), a permanent bookmark of version 1 before the new direction. Same repository from here on; new features go on branches and get merged into `main`.
+
+---
+
+## Still to do
+- [x] Test the new brick size in the headset, then weigh a real brick (**0.12 kg** measured; `BrickMass` left at the 0.13 kg estimate, the difference doesn't matter in the app)
+- [x] Grid snapping + rotating bricks (Parjanya, merged into `main` on 15 Oct)
+- [ ] **Test grid snap v2 in the headset** (stack aligned, crossed stack centred, standing brick, pull the middle of a 3-stack, X reset)
+- [ ] **New headset:** developer mode + USB debugging, check firmware version, build PicoBricks onto it
+- [ ] **New direction (to discuss with the team):** draw a line in AR, set layer height, bricks stack themselves into a wall, preview with AR robot, real robot builds it
+- [ ] Real LAMA table + UR5 model from HANDZONe (ghost robot)
+- [ ] 3-point calibration with robot coordinates (needs Matthias's measurements)
+- [ ] Controller button to switch aligned ↔ non-aligned stacking (`BrickSnap.AlignToBelow`)
+- [ ] Ask Matthias: can the gripper place a brick **standing** (picked lying from the tray, turned 90°)?
+- [ ] Preview, then send brick list to the robot (URSim first)
+- [ ] Test calibration on a clean table at uni
+- [ ] Print the pickup tray, tape it to the robot table, teach positions
+
+---
+
+## How to run it (short version)
+1. Unity Hub → Add project from disk → this folder (Unity **6000.3.8f1** with Android modules).
+2. Get `user.keystore` from Jin, put it in the project root, enter the passwords in Player → Publishing Settings.
+3. **PicoBricks → Setup Brick Scene**, then **Ctrl+B** with the headset connected (PICO cable, USB debugging on).
+4. In the headset: **B** (right) calibrate the table, **trigger** to record points, **X** (left) reset bricks, **Y** (left) passthrough on/off, **grip** to grab.

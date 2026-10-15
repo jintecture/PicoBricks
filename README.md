@@ -11,6 +11,10 @@ Part of the Creative Robotics group project (TU Delft, ARIT1507, Oct 2026).
 
 📖 **Full history of what we did, what worked, what didn't and why:** [`docs/DEVLOG.md`](docs/DEVLOG.md)
 
+**Versions**
+- **v1: manual placement** (tag [`v1-manual-placement`](../../tree/v1-manual-placement), 15 Oct 2026): grab and place bricks by hand, grid snap, table calibration, pickup tray. Described below.
+- **Next (in planning):** draw a line in AR and set the layer height, the bricks stack themselves into a wall, preview it with an AR robot, then the real robot builds it.
+
 ---
 
 ## What it does right now
