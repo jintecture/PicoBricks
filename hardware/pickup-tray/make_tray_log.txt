@@ -1,7 +1,7 @@
-Test frames (clearance 0.5 mm): 71 x 121 mm in total, 11 cm3 (~13 g PLA if solid)
-Tray: clearance 0.5 mm per side -> pocket 51.0 x 101.0 mm, frame 1.6 mm, corner pieces 12.0 mm high
+Test frames (clearance 0.5 mm): 71 x 121 mm in total, 23 cm3 (~28 g PLA if solid)
+Tray: clearance 0.5 mm per side -> pocket 51.0 x 101.0 mm, frame 1.6 mm, corner pieces 19.8 mm high
   frame + 48 corner legs merged into 1 solid(s)
-pickup_tray_bricks_1-6: 229.0 x 250.0 x 12.0 mm, 1 solid(s), closed=True, volume 73 cm3 (~91 g PLA if solid), 46252 triangles
+pickup_tray_bricks_1-6: 229.0 x 250.0 x 19.8 mm, 1 solid(s), closed=True, volume 200 cm3 (~248 g PLA if solid), 38834 triangles
 Pocket centres (brick number: x, y from the tray's front-left corner, mm):
   1: 35.5, 60.5
   2: 114.5, 60.5
@@ -9,8 +9,8 @@ Pocket centres (brick number: x, y from the tray's front-left corner, mm):
   4: 35.5, 189.5
   5: 114.5, 189.5
   6: 193.5, 189.5
-Calibration cross 1: 75.0, 125.0 (top of frame, z = 1.6)
-Calibration cross 2: 154.0, 125.0 (top of frame, z = 1.6)
-Calibration cross 3: 75.0, 245.0 (top of frame, z = 1.6)
+Calibration cross 1: 75.0, 60.5 (top of frame, z = 1.6)
+Calibration cross 2: 154.0, 60.5 (top of frame, z = 1.6)
+Calibration cross 3: 75.0, 189.5 (top of frame, z = 1.6)
 Rhino file: pickup_tray.3dm (layers 'Tray' and 'Test frames')
 Done.

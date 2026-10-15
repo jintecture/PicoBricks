@@ -34,10 +34,10 @@ vp.SetProjection(Rhino.Display.DefinedViewportProjection.Top, None, True)
 vp.ZoomExtents()
 save("preview_top.png")
 
-# Close-up of the front-left corner piece of the tray's first pocket
+# Close-up of the spot where pockets 1, 2, 4 and 5 meet (the slopes form ridges there)
 vp.SetProjection(Rhino.Display.DefinedViewportProjection.Perspective, None, True)
-corner = rg.Point3d(bbox.Min.X + 10.0, bbox.Min.Y + 10.0, 6.0)
-vp.SetCameraLocations(corner, corner + rg.Vector3d(-35, -45, 40))
+corner = rg.Point3d(bbox.Min.X + 75.0, bbox.Min.Y + 125.0, 8.0)
+vp.SetCameraLocations(corner, corner + rg.Vector3d(-60, -80, 70))
 save("preview_corner.png")
 
 doc.Modified = False

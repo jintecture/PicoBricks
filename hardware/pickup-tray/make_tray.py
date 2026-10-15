@@ -32,11 +32,12 @@ MARGIN = 10.0             # frame beyond the pockets (also holds the front-row n
 
 # --- Frame and corner pieces ---
 PLATE = 1.6               # frame thickness
-CORNER_WALL = 4.0         # thickness of the L-shaped corner pieces
-CORNER_HEIGHT = 12.0      # height of the corner pieces above the table
-# 45 degree slope from the OUTER top edge of the corner piece down to the pocket, so a brick that lands
-# on a corner slides in instead of resting on a ledge. Leaves only a 0.2 mm top edge (clean boolean + print).
-LEAD_IN = CORNER_WALL - 0.2
+STRAIGHT = 6.0            # straight (vertical) part of each corner piece, holds the brick
+# Corner pieces fill the gap between pockets, and the 45 degree slopes of neighbouring pockets meet in a
+# ridge in the middle of the gap: a brick landing anywhere near a pocket slides down into it.
+# (0.2 mm less than half the gap leaves a 0.4 mm flat ridge, which prints and booleans cleanly.)
+LEAD_IN = GAP / 2 - 0.2
+CORNER_HEIGHT = STRAIGHT + LEAD_IN   # ~19.8 mm above the table
 LEG_X = 15.0              # corner leg length along the short side
 LEG_Y = 20.0              # corner leg length along the long side
 CORNER_RELIEF_D = 3.0     # round relief in each inside corner so brick corners don't catch
@@ -86,13 +87,16 @@ def frustum(cx, cy, z0, w0, l0, z1, w1, l1):
     return loft.CapPlanarHoles(TOL)
 
 
-def corner_pieces(cx, cy):
-    """Four L-shaped corner pieces just outside the pocket outline."""
+def corner_pieces(cx, cy, left, right, front, back):
+    """Four L-shaped corner pieces around the pocket. left/right/front/back = how far each one reaches
+    outwards on that side: to the middle of the gap (plus a little overlap with the neighbour's piece)
+    or to the tray's outer edge."""
     parts = []
     for sx in (-1, 1):
         for sy in (-1, 1):
             ex, ey = cx + sx * PW / 2, cy + sy * PL / 2          # pocket corner
-            ox, oy = ex + sx * CORNER_WALL, ey + sy * CORNER_WALL  # outer corner of the L
+            ox = ex + sx * (right if sx > 0 else left)          # outer corner of the L
+            oy = ey + sy * (back if sy > 0 else front)
             # leg along x (short side of the brick)
             parts.append(box(ex - sx * LEG_X, ey, 0, ox, oy, CORNER_HEIGHT))
             # leg along y (long side of the brick)
@@ -164,7 +168,14 @@ def build_tray():
             cx = MARGIN + PW / 2 + c * (PW + GAP)
             cy = MARGIN + PL / 2 + r * (PL + GAP)
             centres.append((n, cx, cy))
-            solids += corner_pieces(cx, cy)
+            # towards a neighbour: to the middle of the gap (+0.5 mm overlap so the pieces fuse);
+            # at the outside: to the tray edge
+            inner = GAP / 2 + 0.5
+            solids += corner_pieces(cx, cy,
+                                    left=inner if c > 0 else MARGIN,
+                                    right=inner if c < COLS - 1 else MARGIN,
+                                    front=inner if r > 0 else MARGIN,
+                                    back=inner if r < ROWS - 1 else MARGIN)
             cutters += pocket_cutters(cx, cy)
             # number on the frame just in front of its pocket
             ny = cy - PL / 2 - (MARGIN / 2 if r == 0 else GAP / 2)
@@ -176,9 +187,11 @@ def build_tray():
 
     gx1 = MARGIN + PW + GAP / 2                  # between columns 1 and 2
     gx2 = MARGIN + 2 * PW + GAP + GAP / 2        # between columns 2 and 3
-    gy = MARGIN + PL + GAP / 2                   # between the rows
-    back = depth - MARGIN / 2                    # back edge strip
-    cross_points = [(gx1, gy), (gx2, gy), (gx1, back)]
+    # Crosses on the flat frame in the column gaps, level with the middle of each pocket (the corner pieces
+    # fill the gaps near the corners, so the old spots between the rows are now under a ridge)
+    row0 = MARGIN + PL / 2
+    row1 = MARGIN + PL + GAP + PL / 2
+    cross_points = [(gx1, row0), (gx2, row0), (gx1, row1)]
     for p in cross_points:
         cutters += cross_cutters(*p)
 
@@ -219,11 +232,11 @@ def subtract(bodies, cutters):
 def build_test_frame(clearance, x_offset):
     """Small frame for one brick, with the same four corner pieces as the tray, labelled with its clearance."""
     set_clearance(clearance)
-    ring = CORNER_WALL + 6.0
+    ring = MARGIN
     w, l = PW + 2 * ring, PL + 2 * ring
     cx, cy = x_offset + w / 2, l / 2
     solids = [box(x_offset, 0, 0, x_offset + w, l, PLATE)]
-    solids += corner_pieces(cx, cy)
+    solids += corner_pieces(cx, cy, ring, ring, ring, ring)
     body = rg.Brep.CreateBooleanUnion([outward(s) for s in solids], TOL)
     cutters = pocket_cutters(cx, cy)
     cutters += text_cutters("%.1f" % clearance, cx, ring / 2 + 1.0, 6.0)

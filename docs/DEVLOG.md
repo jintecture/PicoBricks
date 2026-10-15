@@ -184,6 +184,16 @@ Added `test_fit_clearance_0.5-1.0-1.5.stl`: three small frames to try real brick
 
 ---
 
+## 2026-10-15: Pickup tray, big slopes that meet in a ridge
+
+- Problem with the printed version: the lead-in slopes were small (only on the 4 mm corner pieces), so a brick could still land on top of a corner instead of sliding in.
+- **Change:** the corner pieces now **fill the gap between neighbouring pockets**, and their **45° slopes start in the middle of the gap**, so the slopes of neighbouring pockets **meet in a ridge**. Wherever a brick lands near a pocket, it slides down into it. Where four pockets meet, the slopes form a small roof.
+- Still: all 4 corners per pocket, 0.5 mm play per side, open slots in the middle of each side for the gripper, numbers 1–6.
+- Tray is now 229 × 250 × **19.8 mm** (6 mm straight wall + 13.8 mm slope), about 200 cm³ if solid (more plastic than the thin version, because of the big slopes).
+- Calibration crosses moved onto the flat frame in the gaps beside the pockets, because the old spots are now under the ridges: (75, 60.5), (154, 60.5), (75, 189.5).
+
+---
+
 ## Still to do
 - [x] Test the new brick size in the headset, then weigh a real brick (**0.12 kg** measured; `BrickMass` left at the 0.13 kg estimate, the difference doesn't matter in the app)
 - [x] Grid snapping + rotating bricks (Parjanya, merged into `main` on 15 Oct)

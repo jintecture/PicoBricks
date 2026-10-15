@@ -7,21 +7,21 @@ A minimal 3D-printed tray that puts the **6 bricks** (50 × 50 × 100 mm, lying 
 ## Files
 | File | What it is |
 | --- | --- |
-| `pickup_tray_bricks_1-6.stl` | **Print this.** 229 × 250 × 12 mm, fits the Bambu A1 bed (256 × 256 mm) |
+| `pickup_tray_bricks_1-6.stl` | **Print this.** 229 × 250 × 19.8 mm, fits the Bambu A1 bed (256 × 256 mm) |
 | `pickup_tray.3dm` | Rhino model with both: layer **Tray** and layer **Test frames** (next to it) |
-| `test_fit_0.5.stl` | Optional quick check: one pocket (with all 4 corner pieces) at the final fit, ~11 cm³ |
+| `test_fit_0.5.stl` | Optional quick check: one pocket with all 4 corner pieces and the new slopes, ~23 cm³ |
 | `make_tray.py` | Script that generates everything. Change the numbers at the top, then in Rhino 8 run `RunPythonScript` on it |
 | `make_tray_log.txt` | Output of the last run: size, volume, **pocket and cross coordinates** |
 | `preview_*.png` | Pictures of the model (`preview_corner.png`: close-up of a corner piece) |
 
 ## Design (minimal, low filament)
 - A **thin 1.6 mm frame** with **open windows**: the bricks stand **directly on the table**, not on plastic.
-- **L-shaped corner pieces** (4 mm thick, 12 mm high) hold each brick at its 4 corners. The top of each corner piece is a **45° slope starting at the outer edge**, so a brick that lands on a corner slides down into the pocket (no flat ledge to rest on).
+- **Corner pieces** at all 4 corners of every pocket (6 mm straight wall, 19.8 mm high in total). They **fill the gap between neighbouring pockets**, and their **45° slopes meet in a ridge** in the middle of the gap, so a brick landing anywhere near a pocket slides down into it (no flat top to rest on). Where four pockets meet, the slopes form a small "roof".
 - The middle of every side is **open** (21 mm on the short sides, 61 mm on the long sides), so the soft gripper's fingers can reach in from any direction.
 - Pocket = brick + **0.5 mm play per side** (51 × 101 mm), chosen after printing test frames with 0.5 / 1.0 / 1.5 mm: 0.5 fits the real bricks well. Small round **reliefs in the inside corners** so brick corners don't catch.
 - **Numbers 1–6** engraved in the frame in front of each pocket = brick IDs the app sends to the robot.
 - **3 crosshair marks** on the frame: shared reference points. Teach them to the robot once (jog the tool tip onto each cross) and touch the same crosses for the AR calibration.
-- About **73 cm³** of material if printed solid (~91 g PLA); much less with normal infill.
+- About **200 cm³** of material if printed solid (~250 g PLA); much less with normal infill (the big slopes need more plastic than the earlier thin version).
 
 ## Printing (Bambu A1, PLA)
 - Layer height 0.2 mm, 3 walls, 15 % infill, **no supports** (all slopes are 45°). Flat side down.
@@ -42,7 +42,7 @@ A minimal 3D-printed tray that puts the **6 bricks** (50 × 50 × 100 mm, lying 
 | 5 | 114.5 | 189.5 |
 | 6 | 193.5 | 189.5 |
 
-Calibration crosses (top of frame, 1.6 mm high): (75, 125), (154, 125), (75, 245).
+Calibration crosses (top of frame, 1.6 mm high, in the gaps level with the middle of the pockets): (75, 60.5), (154, 60.5), (75, 189.5).
 Pocket spacing is exactly **79 mm** (x) and **129 mm** (y), so once the robot knows one pocket it can compute the others.
 Bricks 1–3 are the front row (y = 0 side of the tray).
 
