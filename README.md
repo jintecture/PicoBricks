@@ -82,6 +82,17 @@ The **white ball** in front of the right controller is the measuring tip. The te
 6. In Unity: **PicoBricks → Setup Brick Scene**, then **Ctrl+B** (Build And Run). Click **Yes** on the "Missing Project ID" popup. The app opens in the headset.
    *"Could not find any valid targets" / "No Android devices connected"?* The build itself is fine (`001.apk` in the project folder); only the install failed. Keep the headset awake and USB debugging approved, then retry. Fallback: copy `001.apk` to the headset's **Download** folder via File Explorer and install it from the headset's file manager.
 
+## Unity → Grasshopper live connection
+
+1. Open Rhino 8 and Grasshopper. Set the `Start` toggle to **True**; Status should show `Listening on port 5000`.
+2. In Unity, enable `BlockTcpSender` and enter Play mode. Use host `127.0.0.1` and port `5000`. Bricks must have the `Brick` tag.
+3. Check Grasshopper Status for `Receiving bricks`. Connect `P` to a Point parameter. Use a ~100 ms Grasshopper Timer if needed.
+4. Set `Start` to **False** to stop the receiver.
+
+**Coordinates:** Values remain in metres. Unity `(X, Y, Z)` maps to Rhino `(X, -Z, Y)`.
+
+**Port already in use?** Close all Rhino sessions, reopen Grasshopper, start the receiver, then enter Unity Play mode.
+
 ## Working together
 - **Before you start:** pull the latest version (GitHub Desktop → *Fetch origin* → *Pull*).
 - **When something works:** commit with a clear note (what you tested, what works, what doesn't), then push.
