@@ -375,7 +375,9 @@ def confirm(args, n):
         return True
     if args.real:
         return input("Build %d bricks on the REAL robot? Speed slider low, e-stop in hand. [y/N] " % n).strip().lower() == "y"
-    return input("Run %d bricks in the simulation? [Y/n] " % n).strip().lower() != "n"
+    # Simulation only: build straight away. Waiting for "y" here meant a new wall from the headset sat unbuilt
+    # while RoboDK still showed the previous one (Jin's test, 19 Oct). The real robot always asks.
+    return True
 
 
 def handle(layout, tf, backend, args):
@@ -406,17 +408,29 @@ def cmd_run(args):
     except OSError:
         ips = ["?"]
     log("listening on UDP %d - build a wall in the headset (A = OK). Laptop IPs: %s" % (UDP_PORT, ", ".join(ips)))
-    last_seq = None
+    last_seq, last_time = None, 0.0
     while True:
         data, addr = sock.recvfrom(65535)
+        # Walls that arrived while the previous one was being built are queued: only build the newest
+        sock.setblocking(False)
+        try:
+            while True:
+                data, addr = sock.recvfrom(65535)
+        except (BlockingIOError, OSError):
+            pass
+        finally:
+            sock.setblocking(True)
         try:
             layout = json.loads(data.decode())
         except ValueError:
             log("ignored junk from", addr)
             continue
-        if layout.get("seq") == last_seq:          # same message via direct + broadcast
+        # Each wall arrives twice (direct + broadcast) with the same seq. The headset restarts seq at 1 when the
+        # app restarts, so only treat it as a duplicate if it also arrived within a couple of seconds.
+        now = time.time()
+        if layout.get("seq") == last_seq and now - last_time < 2.0:
             continue
-        last_seq = layout.get("seq")
+        last_seq, last_time = layout.get("seq"), now
         log("from headset", addr[0])
         with open(os.path.join(HERE, "last_layout.json"), "w") as f:
             json.dump(layout, f, indent=2)       # replay later with --file last_layout.json

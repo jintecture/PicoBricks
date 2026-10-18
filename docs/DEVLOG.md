@@ -323,6 +323,7 @@ Two iterations are planned: **rectangle** first (every layer the same length), t
 - Then "Target cannot be reached": the placeholder put the table 75 cm from the robot, and the tray (at the front-left corner of Jin's ~1.3 m wide desk) ended up 83-88 cm from the base. The UR5 reaches 85 cm at most, less with the tool pointing down. Placeholder moved to 55 cm (`calib.example.json`) → ✅ **RoboDK built the whole headset wall** (6 bricks).
 - **Lesson for the real setup:** tray and build area must stay within ~60-70 cm of the robot base. Position the tray deliberately within reach on the robot's table, and limit the drawing area to the reachable zone later.
 - Still placeholder `calib.json`: the real positions need the corner measurement at the robot (menu 5).
+- **RoboDK showed an older wall than the headset** ("the curve is noticeably wrong"). Checked step by step: headset wall plan = what was sent = where RoboDK put each brick (to the mm). So the data was right; RoboDK was just behind. Causes: (1) in simulation the bridge waited for "y" before every wall, so a new wall from the headset sat unbuilt; (2) duplicates were filtered by number only, and the headset restarts its numbering when the app restarts. **Fix:** the simulation builds straight away (the real robot still asks), only true duplicates are skipped (same number within 2 s), and walls queued during a build are skipped in favour of the newest. Tested with fake headset messages.
 
 ---
 
