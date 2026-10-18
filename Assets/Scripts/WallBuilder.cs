@@ -17,9 +17,10 @@ using UnityEngine.XR.Interaction.Toolkit.Interactables;
 //  2. smooth out hand wobble (start and end stay put)
 //  3. scale the curve about its start point so it is exactly as long as one layer of bricks:
 //     a short scribble and a long sweep give the same shape, at wall size ("mimic the curve")
-//  4. walk along it in steps of one brick length: each step is the direction of one brick
-//  5. neighbouring bricks always touch at one corner: the corner on the inside of the bend, so they never
-//     overlap (a wedge-shaped gap opens on the outside of the bend)
+//  4. "dividers": from where a brick starts, the point on the curve one brick length further on sets its direction
+//  5. "folding ruler": neighbouring bricks are hinged at the corner on the inside of the bend, so they never
+//     overlap (a wedge-shaped gap opens on the outside). Every brick is aimed from where it really starts, so its
+//     front end lands back on the curve and the wall can't drift off it (fixed 2026-10-18, found by Jin)
 //  6. rectangle: every layer repeats the same chain, stacked straight up
 public class WallBuilder : MonoBehaviour
 {
@@ -254,8 +255,11 @@ public class WallBuilder : MonoBehaviour
         float scale = perLayer * L / Length(curve);
         foreach (var p in curve) wallCurve.Add(curve[0] + (p - curve[0]) * scale);
 
-        // 4. walk along it in brick-length steps -> one direction per brick
-        var dirs = ChordDirections(wallCurve, L, perLayer);
+        // 4. first brick: from the start, step one brick length along the curve ("dividers")
+        int progress = 0;
+        Vector3 firstDir = (wallCurve[wallCurve.Count - 1] - wallCurve[0]).normalized;
+        if (StepAlong(wallCurve, wallCurve[0], L, ref progress, out var firstHit))
+            firstDir = (firstHit - wallCurve[0]).normalized;
 
         // The wall body sits on the side of the curve away from the viewer (decided at the start),
         // so the drawn curve stays visible along the wall's front
@@ -264,28 +268,42 @@ public class WallBuilder : MonoBehaviour
         if (cam != null)
         {
             Vector3 viewer = workspace.InverseTransformPoint(cam.transform.position) - curve[0];
-            if (Vector3.Dot(Vector3.Cross(Vector3.up, dirs[0]), viewer) > 0f) sideSign = -1f;
+            if (Vector3.Dot(Vector3.Cross(Vector3.up, firstDir), viewer) > 0f) sideSign = -1f;
         }
         Vector3 Side(Vector3 d) => Vector3.Cross(Vector3.up, d) * sideSign;
 
-        // 5. chain the bricks; each one touches the previous at the corner on the inside of the bend
-        var chain = new List<(Vector3 frontStart, Vector3 dir)>();
-        Vector3 frontStart = wallCurve[0];
-        for (int i = 0; i < perLayer; i++)
+        // 5. chain the bricks. Each brick is hinged to the previous one at the corner on the inside of the
+        //    bend (never overlap), and aimed so its front end lands back ON the curve one brick length later.
+        //    Aiming from where the brick really starts (not from fixed points) means a shift caused by a
+        //    back-corner hinge is corrected by the next brick instead of carried along the whole wall.
+        var chain = new List<(Vector3 frontStart, Vector3 dir)> { (wallCurve[0], firstDir) };
+        for (int i = 1; i < perLayer; i++)
         {
-            Vector3 d = dirs[i];
-            if (i > 0)
+            var (prevStart, prevDir) = chain[i - 1];
+            Vector3 prevEnd = prevStart + prevDir * L;
+            Vector3 prevSide = Side(prevDir);
+
+            int tryProgress = progress;
+            Vector3 d = StepAlong(wallCurve, prevEnd, L, ref tryProgress, out var hit) ? (hit - prevEnd).normalized : prevDir;
+            Vector3 start = prevEnd;
+
+            if (Vector3.Dot(d, prevSide) > 0f)
             {
-                var (prevStart, prevDir) = chain[i - 1];
-                Vector3 prevFrontEnd = prevStart + prevDir * L;
-                bool bendsTowardBody = Vector3.Dot(d, Side(prevDir)) > 0f;
-                frontStart = bendsTowardBody
-                    // inside of the bend is the back: share the back corner
-                    ? prevFrontEnd + Side(prevDir) * W - Side(d) * W
-                    // inside of the bend is the front: share the front corner
-                    : prevFrontEnd;
+                // bends towards the wall body: hinge on the BACK corner; the brick then starts slightly off the
+                // curve, so re-aim from that real start (a few rounds, start and direction depend on each other)
+                Vector3 backCorner = prevEnd + prevSide * W;
+                for (int k = 0; k < 5; k++)
+                {
+                    start = backCorner - Side(d) * W;
+                    tryProgress = progress;
+                    if (!StepAlong(wallCurve, start, L, ref tryProgress, out hit)) break;
+                    d = (hit - start).normalized;
+                }
             }
-            chain.Add((frontStart, d));
+            // else: bends away from the body (or straight): hinge on the FRONT corner, which is on the curve
+
+            progress = tryProgress;
+            chain.Add((start, d));
         }
 
         GetBuildArea(out float minX, out float maxX, out float minZ, out float maxZ);
@@ -312,37 +330,21 @@ public class WallBuilder : MonoBehaviour
         return plan;
     }
 
-    // Steps of straight length L along the polyline, starting at its first point. If the curve runs out
-    // (chords are shorter than the arc), the remaining bricks continue in the last direction.
-    static List<Vector3> ChordDirections(List<Vector3> pts, float L, int count)
+    // "Dividers": the first point on the curve, from segment `progress` onwards, that is exactly L away from
+    // `from`. Only looks forward along the curve (never back to where we came from). Returns false if the
+    // curve runs out; the caller then carries on in the last direction.
+    static bool StepAlong(List<Vector3> pts, Vector3 from, float L, ref int progress, out Vector3 hit)
     {
-        var dirs = new List<Vector3>();
-        Vector3 current = pts[0];
-        int seg = 0;
-        Vector3 lastDir = (pts[pts.Count - 1] - pts[0]).normalized;
-        for (int i = 0; i < count; i++)
+        hit = Vector3.zero;
+        for (int seg = progress; seg < pts.Count - 1; seg++)
         {
-            bool found = false;
-            for (; seg < pts.Count - 1; seg++)
+            if (IntersectSegmentCircle(pts[seg], pts[seg + 1], from, L, out hit))
             {
-                // first point on segment seg..seg+1 that is exactly L away from `current`
-                if (IntersectSegmentCircle(pts[seg], pts[seg + 1], current, L, out var hit))
-                {
-                    Vector3 d = (hit - current).normalized;
-                    dirs.Add(d);
-                    lastDir = d;
-                    current = hit;
-                    found = true;
-                    break;
-                }
-            }
-            if (!found)
-            {
-                dirs.Add(lastDir);
-                current += lastDir * L;
+                progress = seg;
+                return true;
             }
         }
-        return dirs;
+        return false;
     }
 
     // Point on segment a-b (in the xz plane) at distance r from c, the furthest along the segment

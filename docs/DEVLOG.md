@@ -263,6 +263,13 @@ Two iterations are planned: **rectangle** first (every layer the same length), t
 **Status:** ✅ tested in the Pico 4 Ultra (15 Oct): curves, tray and readable bricks work ("this is good", Jin).
 
 ---
+### Curve fix (2026-10-18): bricks drifted off S-curves (found by Jin)
+- **Problem:** in an explanatory drawing of an S-curve, Jin noticed the bricks didn't sit on the 10 cm points: brick 2 had a point at its back, brick 3 in its middle.
+- **Cause:** the points on the curve only set each brick's *direction*; positions were chained from brick to brick. Whenever a joint had to hinge on the **back** corner (curve bending towards the wall body), that brick started off the curve, and every brick after it inherited the shift.
+- **Fix:** keep the two rules (step one brick length along the curve, hinge on the inside corner of the bend), but aim every brick **from where it really starts**, so its front end lands back on the curve. A shift from a back-corner hinge is corrected by the next brick instead of carried along. (`WallBuilder.cs`, `StepAlong`.)
+- Explained with two analogies: **dividers** set to 10 cm stepping along the curve, and bricks joined like a **folding ruler** with the hinge on the inside of each bend.
+
+---
 
 ## 2026-10-15: Pickup tray, big slopes that meet in a ridge
 
