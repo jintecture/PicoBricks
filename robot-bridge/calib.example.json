@@ -1,0 +1,13 @@
+{
+  "_note": "PLACEHOLDER for simulation only. Replace with menu option 5 at the robot.",
+  "front_left_mm": [
+    -400,
+    -750,
+    0
+  ],
+  "front_right_mm": [
+    400,
+    -750,
+    0
+  ]
+}

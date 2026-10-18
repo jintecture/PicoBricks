@@ -281,6 +281,17 @@ Two iterations are planned: **rectangle** first (every layer the same length), t
 
 ---
 
+## 2026-10-18: Headset → laptop → RoboDK / UR5 link (Parjanya, branch `robot-link`)
+
+- Built on `wall-builder`. **No existing files changed** except `.gitignore` and this log, so it merges cleanly.
+- `Assets/Scripts/BrickSender.cs`: adds itself at startup (no scene edit). A few frames after **A** (WallBuilder's OK) it sends, over Wi-Fi (UDP 5005, JSON), every brick that left its tray pocket: **pick** = its pocket, **place** = its wall spot, both in the table frame, plus a `standing` flag. Pick spots are worked out at send time, because the tray moves after calibration. No headset: **S** in Play mode.
+- `robot-bridge/`: `picobricks_bridge.py` + `PICOBRICKS.bat` on the laptop. It converts to robot coordinates with `calib.json` (robot TCP on the table's front-left + front-right corners, the same corners the headset uses), then simulates in RoboDK (bricks ride with the gripper) and runs on the UR5 via RoboDK or plain URScript. See `robot-bridge/README.md`.
+- Gripper (not suction): output, close value, grasp depth and finger direction are settings at the top of the script; **to agree with Matthias**.
+- Relation to `tcp-receiver` (Matthias, Unity → Grasshopper): the two routes do the same job. Pick one for the exhibit.
+- **Status:** bridge tested against a mock RoboDK. Not yet compiled in Unity or run in the headset.
+
+---
+
 ## Still to do
 - [x] Test the new brick size in the headset, then weigh a real brick (**0.12 kg** measured; `BrickMass` left at the 0.13 kg estimate, the difference doesn't matter in the app)
 - [x] Grid snapping + rotating bricks (Parjanya, merged into `main` on 15 Oct)
