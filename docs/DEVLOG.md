@@ -314,6 +314,16 @@ Two iterations are planned: **rectangle** first (every layer the same length), t
 
 ---
 
+## 2026-10-19: First headset → laptop test of the robot link
+
+- Rebuilt the app with `BrickSender`; RoboDK installed on Jin's laptop (it brings its own Python, so `PICOBRICKS.bat` now uses that first).
+- No hotspot needed at home: headset and laptop on the same Wi-Fi, and `BrickSender` also broadcasts, so the laptop received it.
+- ✅ **Headset → laptop works:** drew a curve, pressed A, and the bridge (menu 3) printed all 6 bricks with pick (tray pocket) and place (wall) in robot coordinates.
+- ❌ RoboDK step failed: "Invalid item provided". Cause: RoboDK had been reopened (station without a UR5) in the hours since the listener started, so the bridge's stored robot handle was dead. **Fix:** the bridge now reconnects before each run. Load the UR5 again and replay with menu 4 (`last_layout.json`) or press A again in the headset.
+- Still placeholder `calib.json`: the wall's shape is right in RoboDK, its position relative to the robot isn't (needs the corner measurement at the real robot, menu 5).
+
+---
+
 ## Still to do
 - [x] Test the new brick size in the headset, then weigh a real brick (**0.12 kg** measured; `BrickMass` left at the 0.13 kg estimate, the difference doesn't matter in the app)
 - [x] Grid snapping + rotating bricks (Parjanya, merged into `main` on 15 Oct)
