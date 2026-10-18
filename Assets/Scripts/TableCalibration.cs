@@ -13,6 +13,10 @@ public class TableCalibration : MonoBehaviour
     public Transform rightController;
     public BrickControls bricks;
     public Passthrough passthrough;
+    [Tooltip("Pickup tray (with the bricks): put at the table's front-left corner after calibration")]
+    public Transform tray;
+    [Tooltip("Tray's front-left corner, measured from the table's front-left corner (x right, y away), m")]
+    public Vector2 trayOffset = Vector2.zero;
 
     [Tooltip("How far in front of the controller the measuring tip sits (m)")]
     public float tipOffset = 0.06f;
@@ -28,6 +32,12 @@ public class TableCalibration : MonoBehaviour
     readonly Vector3[] points = new Vector3[4];
     int step = -1; // -1 = not calibrating
     bool bWasDown, triggerWasDown;
+
+    /// <summary>True while the user is touching calibration points (other tools should ignore the trigger).</summary>
+    public bool IsCalibrating => step >= 0;
+
+    /// <summary>Raised after the table has been placed on the real table.</summary>
+    public event System.Action Placed;
 
     Transform tip;
     TextMesh label;
@@ -125,6 +135,8 @@ public class TableCalibration : MonoBehaviour
         table.localPosition = new Vector3(0f, -height / 2f, depth / 2f);
         table.localScale = new Vector3(width, height, depth);
         if (floor != null) floor.localPosition = new Vector3(0f, -height, 0f);
+        // Tray at the real table's front-left corner (before the reset, so the bricks go back into it)
+        if (tray != null) tray.localPosition = new Vector3(-width / 2f + trayOffset.x, 0f, trayOffset.y);
 
         if (bricks != null) bricks.ResetBricks();
 
@@ -133,5 +145,6 @@ public class TableCalibration : MonoBehaviour
 
         label.text = $"Table placed: {width * 100f:F0} x {depth * 100f:F0} cm, {height * 100f:F0} cm high\nB = redo";
         Debug.Log($"PicoBricks: table placed at {frontMiddle}, {width:F2} x {depth:F2} m, height {height:F2} m");
+        Placed?.Invoke();
     }
 }

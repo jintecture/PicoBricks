@@ -184,6 +184,93 @@ Added `test_fit_clearance_0.5-1.0-1.5.stl`: three small frames to try real brick
 
 ---
 
+## 2026-10-15: New headset, Pico 4 Ultra Enterprise
+
+- The new headset is **not** the same model: **Pico 4 Ultra Enterprise** (A9210), firmware **5.15.5**, Android 14. TU Delft-managed (their apps are installed; we only ever install/remove PicoBricks). **We use this one until the end.**
+- USB debugging was already on and the laptop was already allowed.
+- **Decision:** switch back to **PICO SDK 3.4.0**. SDK 2.5 was only chosen for the old headset's old firmware (5.9.9); the Ultra needs SDK 3.0+ and its firmware meets 3.x's requirement (5.14+).
+- `Passthrough.cs` now also uses SDK 3.x's official `PXR_Manager.EnableVideoSeeThrough`, keeping the direct calls as a fallback.
+- PICO Project Validation on 3.4 suggested: HDR off for URP (same cause as our black passthrough), multiview stereo rendering, SSAO off. Applied.
+- Build installed and runs on the Ultra.
+- Feedback on grid snap v2 in the headset (Jin): placed bricks no longer follow gravity and some float. Not fixed, because the project moves to the wall-drawing version next; grid snap is switched off there.
+
+---
+
+## 2026-10-15: Version 2, the wall from a drawn line (iteration 1: rectangle)
+
+**The new idea:** instead of placing bricks one by one, the user describes the wall and the app works out where every brick goes. The same list then drives the robot.
+1. Calibrate the table (as before).
+2. **Draw a line** on the table where the wall should go.
+3. **Choose the layer height** (1–3 layers).
+4. Press **OK**, and the bricks appear as a wall along the line.
+5. (Later) preview with an AR robot, then the real robot builds it.
+
+Two iterations are planned: **rectangle** first (every layer the same length), then **triangle** (3 + 2 + 1 = 6 bricks, each layer shorter).
+
+**Rectangle with 6 bricks:** bricks per layer = 6 ÷ layers, so 1 layer = 6 × 1 (60 cm long), 2 layers = 3 × 2 (30 cm), 3 layers = 2 × 3 (20 cm). Very limited, but enough to get the whole pipeline (draw → plan → AR → robot) working first.
+
+**How it works now (`Assets/Scripts/WallBuilder.cs`):**
+- **Drawing:** point the right controller's laser at the table and hold the **trigger**; release at the end. The point is where the ray hits the table top, so you can draw from a comfortable distance. Both ends are kept inside the **build area** (table minus 3 cm, shown as a white outline).
+- **Layers:** right **thumbstick** left/right (1–3). The floating text shows the resulting wall, e.g. "3 bricks long x 2 high = 30 cm wall". **A** = OK.
+- **Wall:** bricks lie flat, long side along the line, end to end, stacked straight up (no overlap between layers yet). The wall's angle follows the line.
+- **"One corner always touching":** the line's **start point is the wall's front corner**, and the wall's front face lies on the line. The wall sits on the side of the line *away from the user*, so the drawn line stays visible along its front.
+- The **line's length doesn't set the wall length** yet: with 6 bricks the length comes from the layer count. The line gives the start point and the direction.
+- If the wall would stick out of the table, nothing is built and the user is asked to draw again or choose more layers.
+- Built bricks are locked in place and can't be grabbed. **Trigger** draws a new wall (bricks go back first), **X** puts all bricks back.
+- **Brick list for the robot:** each build is saved as `wall_plan.json` on the headset (`/sdcard/Android/data/com.lama.picobricks/files/`): pattern, layers, and for every brick its build order, layer, position (x, y, z in metres, table frame: origin = middle of the front edge on the table top) and angle (yaw). Also printed to the log. This is the start of the interface with Matthias.
+- Grid snap (`BrickSnap.cs`, v1) is **switched off** (`AddGridSnap = false` in `BrickSceneSetup.cs`): it made placed bricks ignore gravity and float, and isn't needed when the wall is generated.
+
+**Open questions for the team:**
+- Should the wall be centred on the line instead of starting at it? Should the line's length matter (e.g. spacing bricks out)?
+- Should layers overlap like real masonry (half-brick offset)? That changes how many bricks fit per layer.
+- Which side of the line should the wall sit on?
+- How will the robot get `wall_plan.json`: copied by hand, Wi-Fi, through HANDZONe?
+
+**Status:** compiled; first headset test → see the next entry.
+
+---
+
+## 2026-10-15: v2 after the first headset test: curves, bricks in the tray, readable bricks
+
+**Feedback from the first test (Jin):**
+1. It has to be a **curve**, not a straight line. When the curve bends, the bricks must still **touch at at least one corner** and **mimic the curve**, whether the drawn curve is too short or too long.
+2. The user doesn't really need to handle the bricks any more, but keep them for now: they should start **in the pickup tray** (the one we designed), fixed at the **front-left corner of the table** after calibration, and still be movable.
+3. All bricks look like one big block when built (same colour, no edges). → **Black outline**, **brown at 70 % opacity**.
+
+### The curve logic (`WallBuilder.cs`)
+1. **Record:** while the trigger is held, a point is stored every ~1 cm where the laser hits the table (kept inside the build area).
+2. **Smooth:** a few passes of neighbour averaging remove hand wobble; the first and last point stay where they were drawn.
+3. **Scale to the wall ("mimic"):** with 6 bricks the length of one layer is fixed (6, 3 or 2 bricks). The curve is scaled **about its start point** until its length equals one layer of bricks. A short scribble and a long sweep give the same shape at wall size. The scaled curve is shown after building.
+4. **Walk in brick lengths:** from the start, find the point on the curve exactly 10 cm away (one brick length, measured straight), then the next, and so on. Each step is the direction of one brick. If the curve runs out (straight steps are shorter than the curve), the remaining bricks continue in the last direction.
+5. **Corner rule:** two straight bricks can't follow a bend exactly: one side gets a gap, the other would overlap. At every joint the bricks share the corner **on the inside of the bend**:
+   - curve bends away from the wall body → they share the **front** corner (gap opens at the back);
+   - curve bends towards the wall body → they share the **back** corner (gap opens at the front).
+   So they never overlap and always touch at one corner.
+6. **Layers (rectangle):** every layer repeats the same chain, stacked straight up.
+- If any brick corner ends up off the table or on the tray, nothing is built and the user is asked to draw again or choose more layers (= a shorter wall).
+- Tunable at the top of `WallBuilder.cs`: point spacing, smoothing passes, edge margin, minimum curve length.
+
+### Bricks start in the tray
+- The tray in the scene is the **actual printed tray**: `Assets/Editor/TrayMeshImporter.cs` turns `hardware/pickup-tray/pickup_tray_bricks_1-6.stl` into a Unity mesh (mm → m, Rhino z-up → Unity y-up). Unity can't import STL itself. Re-run **Setup Brick Scene** after changing the tray.
+- It sits at the table's **front-left corner** (`TableCalibration` moves it there after calibration; `trayOffset` if the real tray is taped a bit further in). It has a collider, so bricks rest in its pockets.
+- The 6 bricks start in its pockets (numbered 1–6 like the print) and can be grabbed and moved. **X** puts them back into the tray; building a wall takes them from the tray (like the robot will).
+- The drawing area now excludes the tray (starts 3 cm to the right of it).
+
+### Readable bricks
+- Brick material: URP Lit, **transparent**, brown (0.55, 0.36, 0.20) at **70 % opacity** (`Assets/Materials/BrickTransparent.mat`).
+- **Black 2 mm outline** on all 12 edges: a small mesh of 12 thin boxes (`Assets/Models/BrickOutline.asset`, made by the setup script) as a child of every brick, unlit black, rendered from both sides.
+
+**Status:** ✅ tested in the Pico 4 Ultra (15 Oct): curves, tray and readable bricks work ("this is good", Jin).
+
+---
+### Curve fix (2026-10-18): bricks drifted off S-curves (found by Jin)
+- **Problem:** in an explanatory drawing of an S-curve, Jin noticed the bricks didn't sit on the 10 cm points: brick 2 had a point at its back, brick 3 in its middle.
+- **Cause:** the points on the curve only set each brick's *direction*; positions were chained from brick to brick. Whenever a joint had to hinge on the **back** corner (curve bending towards the wall body), that brick started off the curve, and every brick after it inherited the shift.
+- **Fix:** keep the two rules (step one brick length along the curve, hinge on the inside corner of the bend), but aim every brick **from where it really starts**, so its front end lands back on the curve. A shift from a back-corner hinge is corrected by the next brick instead of carried along. (`WallBuilder.cs`, `StepAlong`.)
+- Explained with two analogies: **dividers** set to 10 cm stepping along the curve, and bricks joined like a **folding ruler** with the hinge on the inside of each bend.
+
+---
+
 ## 2026-10-15: Pickup tray, big slopes that meet in a ridge
 
 - Problem with the printed version: the lead-in slopes were small (only on the 4 mm corner pieces), so a brick could still land on top of a corner instead of sliding in.
@@ -199,7 +286,9 @@ Added `test_fit_clearance_0.5-1.0-1.5.stl`: three small frames to try real brick
 - [x] Grid snapping + rotating bricks (Parjanya, merged into `main` on 15 Oct)
 - [ ] **Test grid snap v2 in the headset** (stack aligned, crossed stack centred, standing brick, pull the middle of a 3-stack, X reset)
 - [ ] **New headset:** developer mode + USB debugging, check firmware version, build PicoBricks onto it
-- [ ] **New direction (to discuss with the team):** draw a line in AR, set layer height, bricks stack themselves into a wall, preview with AR robot, real robot builds it
+- [ ] **v2 rectangle:** test draw line → layers → build in the headset (branch `wall-builder`), then merge into main
+- [ ] **v2 triangle:** 3 + 2 + 1 pattern
+- [ ] Send `wall_plan.json` to the robot (agree format + transport with Matthias)
 - [ ] Real LAMA table + UR5 model from HANDZONe (ghost robot)
 - [ ] 3-point calibration with robot coordinates (needs Matthias's measurements)
 - [ ] Controller button to switch aligned ↔ non-aligned stacking (`BrickSnap.AlignToBelow`)

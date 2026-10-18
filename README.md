@@ -1,6 +1,6 @@
 # PicoBricks
 
-AR app for the **Pico 4 Enterprise** headset: place timber bricks on a real table in augmented reality, preview the layout, and (later) let a **UR5 robot** build it.
+AR app for the **Pico 4 Ultra Enterprise** headset: design a timber-brick wall on a real table in augmented reality, preview it, and (later) let a **UR5 robot** build it.
 Part of the Creative Robotics group project (TU Delft, ARIT1507, Oct 2026).
 
 | Who | Part |
@@ -12,32 +12,33 @@ Part of the Creative Robotics group project (TU Delft, ARIT1507, Oct 2026).
 📖 **Full history of what we did, what worked, what didn't and why:** [`docs/DEVLOG.md`](docs/DEVLOG.md)
 
 **Versions**
-- **v1: manual placement** (tag [`v1-manual-placement`](../../tree/v1-manual-placement), 15 Oct 2026): grab and place bricks by hand, grid snap, table calibration, pickup tray. Described below.
-- **Next (in planning):** draw a line in AR and set the layer height, the bricks stack themselves into a wall, preview it with an AR robot, then the real robot builds it.
+- **v1: manual placement** (tag [`v1-manual-placement`](../../tree/v1-manual-placement), 15 Oct 2026): grab and place bricks by hand, grid snap, table calibration, pickup tray.
+- **v2: wall from a drawn curve** (in progress, branch `wall-builder`): draw a curve on the table, choose 1–3 layers, the 6 bricks build the wall. Iteration 1 = **rectangle** (6 × 1, 3 × 2, 2 × 3); iteration 2 = **triangle** (3 + 2 + 1, later). Then preview with an AR robot, then the real robot builds it.
 
 ---
 
-## What it does right now
-- Shows your **real room** through the headset cameras (passthrough) with virtual bricks in it.
-- **Calibrate** the virtual table onto a real table by touching 4 points.
-- **6 bricks (5 × 5 × 10 cm)** you can grab and place, lying flat or standing on end.
-- **Grid snap**: let go of a brick over the table and it
-  - settles **lying** (5 cm tall) or **standing** (10 cm tall), whichever is closer to how you held it, turned to the nearest 90°;
-  - on another placed brick: sits **centred on it** (no half-brick offsets); on the table: edges snap to a **5 cm grid**;
-  - lands on whatever is below and locks in place. Take a brick out of a stack and the ones above **drop down** onto what's left.
-  - Let go off the table and it returns to its start spot. Every placement is logged (position, rotation, lying/standing): the data the robot will need.
-- A 3D-printable **pickup tray** for the real bricks: [`hardware/pickup-tray`](hardware/pickup-tray).
+## What it does right now (v2, iteration 1: rectangle along a curve)
+- Shows your **real room** through the headset cameras (passthrough).
+- **Calibrate** the virtual table onto the real table by touching 4 points. A white outline shows the **build area** (the table minus a 3 cm margin).
+- **Draw a curve** (or a straight line) on the table with the controller's laser. The bricks **mimic the curve**: it is scaled to the wall length, the bricks follow it in 10 cm steps and **always touch at one corner** (the one on the inside of each bend). The curve's start point is the wall's first corner. Logic explained in the DEVLOG.
+- **Choose the number of layers (1–3).** With 6 bricks: 1 layer = 6 bricks long (60 cm), 2 layers = 3 × 2 (30 cm), 3 layers = 2 × 3 (20 cm).
+- Press **OK (A)** and the bricks build the wall: lying flat, along the curve, stacked straight up. If it doesn't fit on the table, you're asked to draw again.
+- Every built wall is saved as a **brick list for the robot** (`wall_plan.json` on the headset: build order, layer, position and angle of each brick in table coordinates).
+- The 6 bricks start in the **pickup tray** at the table's front-left corner: the same tray we 3D-print ([`hardware/pickup-tray`](hardware/pickup-tray)). They can be grabbed; building a wall takes them from the tray.
+- Bricks are **brown, 70 % see-through, with black edges**, so each brick is readable in a built wall.
 
 ## Controls (in the headset)
 | Button | Action |
 | --- | --- |
-| **Grip** (either hand, side button) | Grab a brick (point the laser at it, or reach out and grab it). Release over the table to snap it; hold it upright to stand it on end |
 | **B** (right controller) | Start table calibration |
-| **Trigger** (right controller) | Record a calibration point. Order: front-left corner, front-right corner, back-left corner, floor |
-| **X** (left controller) | Put all bricks back on the table |
+| **Trigger** (right controller) | During calibration: record a point (front-left corner, front-right corner, back-left corner, floor). Otherwise: **point at the table and hold to draw the wall curve**; press again to draw a new wall |
+| **Thumbstick left/right** (right) | Number of layers (1–3) |
+| **A** (right controller) | OK: build the wall |
+| **X** (left controller) | Put all bricks back in the tray |
 | **Y** (left controller) | Switch passthrough ↔ VR (re-calibrate afterwards) |
+| **Grip** | Grab a loose brick (bricks in a built wall can't be grabbed) |
 
-The **white ball** in front of the right controller is the measuring tip. The text above the controller says what to do next.
+The **white ball** in front of the right controller is the measuring tip for calibration. The text floating above the table says what to do next.
 
 ---
 
@@ -51,8 +52,10 @@ The **white ball** in front of the right controller is the measuring tip. The te
 | `Assets/Scripts/Passthrough.cs` | Turns the real-room camera view on and off. |
 | `Assets/Scripts/BrickControls.cs` | X and Y buttons; puts bricks back if they fall off the world. |
 | `Assets/Scripts/TableCalibration.cs` | 4-point table calibration (B + trigger). |
-| `Assets/Scripts/BrickSnap.cs` | Grid snap on release (one per brick): lying/standing, 90° turns, centred stacking or 5 cm table grid, lock in place, bricks above drop when one is removed. `BrickSnap.AlignToBelow` switches centred stacking off (half-brick offsets allowed). |
-| `Assets/Materials/` | Colours for the bricks (Wood), table and floor. |
+| `Assets/Scripts/WallBuilder.cs` | **v2:** draw the curve (trigger), choose layers (thumbstick), build the wall (A), save `wall_plan.json` for the robot. Wall patterns are planned here (rectangle now, triangle next). |
+| `Assets/Editor/TrayMeshImporter.cs` | Turns the tray STL into a Unity mesh, so the scene uses exactly the printed tray. |
+| `Assets/Scripts/BrickSnap.cs` | v1 only, **switched off in v2** (`AddGridSnap` in `BrickSceneSetup.cs`). Grid snap on release (one per brick): lying/standing, 90° turns, centred stacking or 5 cm table grid, lock in place, bricks above drop when one is removed. `BrickSnap.AlignToBelow` switches centred stacking off (half-brick offsets allowed). |
+| `Assets/Materials/` | Colours for the bricks (Wood), table, floor, wall line (cyan) and build area (white). |
 | `docs/DEVLOG.md` | Development log: every step, problem and decision. |
 | `hardware/pickup-tray/` | 3D-printable tray that holds the 6 real bricks for the robot (STL, Rhino model and the script that makes it) |
 
@@ -65,7 +68,7 @@ The **white ball** in front of the right controller is the measuring tip. The te
 | `Assets/XR/`, `Assets/XRI/` | XR plug-in settings (PICO enabled for Android) |
 | `Assets/Settings/` | Graphics (URP) settings. The headset uses `Mobile_RPAsset`. |
 | `Assets/TutorialInfo/`, `Assets/Readme.asset` | Leftovers from Unity's project template, can be ignored |
-| `Packages/manifest.json` | List of packages: **PICO SDK 2.5.0** (not newer, see DEVLOG), XR Interaction Toolkit 3.4.0, … |
+| `Packages/manifest.json` | List of packages: **PICO SDK 3.4.0** (for the Pico 4 Ultra; v1 used 2.5.0 for the old Pico 4, see DEVLOG), XR Interaction Toolkit 3.4.0, … |
 | `ProjectSettings/` | Unity project settings (Android, package name `com.lama.picobricks`, …) |
 
 **Not on GitHub on purpose:** `Library/`, `Temp/`, `Logs/` (Unity rebuilds them), the built app (`.apk`) and the signing key (`user.keystore`, ask Jin).

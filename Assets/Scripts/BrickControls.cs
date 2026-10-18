@@ -40,10 +40,14 @@ public class BrickControls : MonoBehaviour
         yWasDown = yDown;
     }
 
+    /// <summary>Raised after X (or a calibration) put all bricks back on their start spots.</summary>
+    public event System.Action BricksReset;
+
     public void ResetBricks()
     {
         foreach (var pose in startPoses) PutBack(pose);
         Debug.Log("PicoBricks: bricks reset");
+        BricksReset?.Invoke();
     }
 
     // Safety net: a brick that falls far below the table goes back to its start spot
@@ -58,7 +62,9 @@ public class BrickControls : MonoBehaviour
     {
         var pos = bricksParent.TransformPoint(pose.localPos);
         var rot = bricksParent.rotation * pose.localRot;
-        pose.rb.isKinematic = false; // placed (snapped) bricks are locked; free them again
+        pose.rb.isKinematic = false; // placed (snapped) or built (wall) bricks are locked; free them again
+        var grab = pose.rb.GetComponent<UnityEngine.XR.Interaction.Toolkit.Interactables.XRGrabInteractable>();
+        if (grab != null) grab.enabled = true; // the wall builder switches grabbing off
         var snap = pose.rb.GetComponent<BrickSnap>();
         if (snap != null) snap.Unplace();
         pose.rb.linearVelocity = Vector3.zero;

@@ -6,7 +6,8 @@ using UnityEngine;
 
 // Menu: PicoBricks > Setup Brick Scene
 // Replaces the plain XR Origin with the XRI Starter Assets rig (controller ray + grab),
-// keeps PXR_Manager, and adds a floor, a table and six grabbable 5 x 5 x 10 cm bricks that snap to a grid.
+// keeps PXR_Manager, and adds a floor, a table, six 5 x 5 x 10 cm bricks and the wall builder
+// (draw a line, choose 1-3 layers, the bricks build the wall).
 public static class BrickSceneSetup
 {
     const string RigPath =
@@ -15,11 +16,21 @@ public static class BrickSceneSetup
     // Real bricks: 5 cm wide, 5 cm high, 10 cm deep (x, y, z in metres)
     static readonly Vector3 BrickSize = new Vector3(0.05f, 0.05f, 0.10f);
     const int BrickCount = 6;
-    const int BricksPerRow = 6;
     // Estimate 0.13 kg (0.25 L of timber at ~500 kg/m³); a real brick weighs 0.12 kg, close enough for the app
     const float BrickMass = 0.13f;
     // Default only; TableCalibration replaces it with the measured height
     const float TableHeight = 0.75f;
+    // Grid snap (BrickSnap.cs, version 1) is off from version 2 on: in the headset placed bricks ignored gravity
+    // and some floated, and in version 2 the wall is generated from a drawn line instead of placed by hand.
+    static readonly bool AddGridSnap = false;
+
+    // Pocket centres of the printed pickup tray (hardware/pickup-tray/README.md), mm from the tray's front-left
+    // corner: x to the right, y away from the front edge. Brick 1-3 = front row.
+    static readonly float[] PocketX = { 35.5f, 114.5f, 193.5f };
+    static readonly float[] PocketY = { 60.5f, 189.5f };
+    // Bricks: brown at 70 % opacity, with black edges so each brick stays readable in a built wall
+    static readonly Color BrickColour = new Color(0.55f, 0.36f, 0.2f, 0.7f);
+    const float OutlineThickness = 0.002f; // 2 mm black edges
 
     [MenuItem("PicoBricks/Setup Brick Scene")]
     static void Setup()
@@ -40,7 +51,12 @@ public static class BrickSceneSetup
         var rig = SetupRig(rigPrefab, xrOriginType, pxrManagerType);
         EnablePicoVideoSeeThrough();
 
-        var wood = GetOrCreateMaterial("Assets/Materials/Wood.mat", new Color(0.78f, 0.62f, 0.42f));
+        var wood = GetOrCreateTransparentMaterial("Assets/Materials/BrickTransparent.mat", BrickColour);
+        var outlineMat = GetOrCreateMaterial("Assets/Materials/BrickOutline.mat", Color.black, unlit: true);
+        outlineMat.SetFloat("_Cull", 0f); // render both sides of the thin edge boxes
+        var trayMat = GetOrCreateMaterial("Assets/Materials/Tray.mat", new Color(0.82f, 0.84f, 0.86f));
+        var outlineMesh = GetOrCreateOutlineMesh("Assets/Models/BrickOutline.asset", BrickSize, OutlineThickness);
+        var trayMesh = TrayMeshImporter.ImportOrLoad();
         var grey = GetOrCreateMaterial("Assets/Materials/Table.mat", new Color(0.35f, 0.35f, 0.38f));
         var floorMat = GetOrCreateMaterial("Assets/Materials/Floor.mat", new Color(0.55f, 0.55f, 0.55f));
 
@@ -73,21 +89,37 @@ public static class BrickSceneSetup
         table.transform.localScale = new Vector3(1.0f, TableHeight, 0.6f);
         table.GetComponent<Renderer>().sharedMaterial = grey;
 
+        // The printed pickup tray sits at the table's front-left corner (TableCalibration moves it there after
+        // calibration). The bricks start in its pockets, like the real ones the robot picks up.
+        var tray = new GameObject("PickupTray");
+        tray.transform.SetParent(workspace.transform, false);
+        tray.transform.localPosition = new Vector3(-table.transform.localScale.x / 2f, 0f, 0f);
+        if (trayMesh != null)
+        {
+            tray.AddComponent<MeshFilter>().sharedMesh = trayMesh;
+            tray.AddComponent<MeshRenderer>().sharedMaterial = trayMat;
+            tray.AddComponent<MeshCollider>().sharedMesh = trayMesh;
+        }
+
         var bricks = new GameObject("Bricks");
-        bricks.transform.SetParent(workspace.transform, false);
-        // Rows of bricks near the front edge, 10 cm apart side to side, long side pointing away from you
+        bricks.transform.SetParent(tray.transform, false);
         for (int i = 0; i < BrickCount; i++)
         {
-            int column = i % BricksPerRow, row = i / BricksPerRow;
+            float px = PocketX[i % PocketX.Length], py = PocketY[i / PocketX.Length];
             var brick = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            brick.name = $"Brick_{i}";
+            brick.name = $"Brick_{i + 1}";
             brick.transform.SetParent(bricks.transform);
-            brick.transform.localPosition = new Vector3(
-                (column - (BricksPerRow - 1) / 2f) * 0.10f,
-                BrickSize.y / 2f + 0.001f,
-                0.10f + row * 0.15f);
+            // lying flat in its pocket, long side pointing away from the front edge
+            brick.transform.localPosition = new Vector3(px / 1000f, BrickSize.y / 2f + 0.001f, py / 1000f);
             brick.transform.localScale = BrickSize;
             brick.GetComponent<Renderer>().sharedMaterial = wood;
+
+            var outline = new GameObject("Outline");
+            outline.transform.SetParent(brick.transform, false);
+            outline.AddComponent<MeshFilter>().sharedMesh = outlineMesh;
+            var outlineRenderer = outline.AddComponent<MeshRenderer>();
+            outlineRenderer.sharedMaterial = outlineMat;
+            outlineRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
 
             var rb = brick.AddComponent<Rigidbody>();
             rb.mass = BrickMass;
@@ -104,9 +136,12 @@ public static class BrickSceneSetup
             }
 
             // Grid snap on release: 5 cm grid in the table's frame, 90° turns, drops onto what's below, then locks
-            var snap = brick.AddComponent<BrickSnap>();
-            snap.workspace = workspace.transform;
-            snap.table = table.transform;
+            if (AddGridSnap)
+            {
+                var snap = brick.AddComponent<BrickSnap>();
+                snap.workspace = workspace.transform;
+                snap.table = table.transform;
+            }
         }
 
         if (rig != null)
@@ -126,11 +161,27 @@ public static class BrickSceneSetup
             calibration.workspace = workspace.transform;
             calibration.table = table.transform;
             calibration.floor = floor.transform;
+            calibration.tray = tray.transform;
             calibration.rightController = FindChild(rig.transform, "Right Controller");
             calibration.bricks = controls;
             calibration.passthrough = passthrough;
             if (calibration.rightController == null)
                 Debug.LogWarning("PicoBricks: 'Right Controller' not found in the rig, table calibration won't work");
+
+            // Version 2: draw a line on the table, choose layers, the bricks build the wall
+            var wall = rig.GetComponent<WallBuilder>();
+            if (wall == null) wall = Undo.AddComponent<WallBuilder>(rig);
+            wall.workspace = workspace.transform;
+            wall.table = table.transform;
+            wall.bricksParent = bricks.transform;
+            wall.rightController = calibration.rightController;
+            wall.calibration = calibration;
+            wall.controls = controls;
+            wall.brickSize = BrickSize;
+            wall.tray = tray.transform;
+            if (trayMesh != null) wall.traySize = new Vector2(trayMesh.bounds.size.x, trayMesh.bounds.size.z);
+            wall.lineMaterial = GetOrCreateMaterial("Assets/Materials/WallLine.mat", new Color(0.1f, 0.85f, 1f), unlit: true);
+            wall.zoneMaterial = GetOrCreateMaterial("Assets/Materials/BuildArea.mat", new Color(1f, 1f, 1f), unlit: true);
         }
 
         var scene = EditorSceneManager.GetActiveScene();
@@ -204,17 +255,91 @@ public static class BrickSceneSetup
         return starterRig.gameObject;
     }
 
-    static Material GetOrCreateMaterial(string path, Color color)
+    static Material GetOrCreateMaterial(string path, Color color, bool unlit = false)
     {
         var mat = AssetDatabase.LoadAssetAtPath<Material>(path);
         if (mat != null) return mat;
 
         if (!AssetDatabase.IsValidFolder("Assets/Materials"))
             AssetDatabase.CreateFolder("Assets", "Materials");
-        mat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+        // Unlit for lines: always the same bright colour, also in passthrough
+        mat = new Material(Shader.Find(unlit ? "Universal Render Pipeline/Unlit" : "Universal Render Pipeline/Lit"));
         mat.SetColor("_BaseColor", color);
         AssetDatabase.CreateAsset(mat, path);
         return mat;
+    }
+
+    // URP Lit, transparent (alpha blended) so you can see through the bricks
+    static Material GetOrCreateTransparentMaterial(string path, Color color)
+    {
+        var mat = AssetDatabase.LoadAssetAtPath<Material>(path);
+        bool isNew = mat == null;
+        if (isNew)
+        {
+            if (!AssetDatabase.IsValidFolder("Assets/Materials"))
+                AssetDatabase.CreateFolder("Assets", "Materials");
+            mat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+        }
+        mat.SetColor("_BaseColor", color);
+        mat.SetFloat("_Surface", 1f);   // transparent
+        mat.SetFloat("_Blend", 0f);     // alpha
+        mat.SetFloat("_ZWrite", 0f);
+        mat.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+        mat.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+        mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        mat.SetOverrideTag("RenderType", "Transparent");
+        mat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+        if (isNew) AssetDatabase.CreateAsset(mat, path);
+        else EditorUtility.SetDirty(mat);
+        return mat;
+    }
+
+    // 12 thin boxes along the edges of a unit cube, sized so they are `thickness` metres thick once the brick's
+    // own scale (brickSize) is applied. Used as a child of every brick for the black outline.
+    static Mesh GetOrCreateOutlineMesh(string path, Vector3 brickSize, float thickness)
+    {
+        var verts = new System.Collections.Generic.List<Vector3>();
+        var tris = new System.Collections.Generic.List<int>();
+        var t = new Vector3(thickness / brickSize.x, thickness / brickSize.y, thickness / brickSize.z);
+
+        void AddBox(Vector3 centre, Vector3 size)
+        {
+            Vector3 h = size / 2f;
+            int start = verts.Count;
+            for (int i = 0; i < 8; i++)
+                verts.Add(centre + new Vector3((i & 1) == 0 ? -h.x : h.x, (i & 2) == 0 ? -h.y : h.y, (i & 4) == 0 ? -h.z : h.z));
+            int[] faces =
+            {
+                0, 2, 3, 0, 3, 1,  4, 5, 7, 4, 7, 6,  0, 1, 5, 0, 5, 4,
+                2, 6, 7, 2, 7, 3,  0, 4, 6, 0, 6, 2,  1, 3, 7, 1, 7, 5,
+            };
+            foreach (int f in faces) tris.Add(start + f);
+        }
+
+        foreach (float a in new[] { -0.5f, 0.5f })
+            foreach (float b in new[] { -0.5f, 0.5f })
+            {
+                AddBox(new Vector3(0, a, b), new Vector3(1 + t.x, t.y, t.z)); // along x
+                AddBox(new Vector3(a, 0, b), new Vector3(t.x, 1 + t.y, t.z)); // along y
+                AddBox(new Vector3(a, b, 0), new Vector3(t.x, t.y, 1 + t.z)); // along z
+            }
+
+        var mesh = new Mesh { name = "BrickOutline" };
+        mesh.SetVertices(verts);
+        mesh.SetTriangles(tris, 0);
+        mesh.RecalculateNormals();
+        mesh.RecalculateBounds();
+
+        if (!AssetDatabase.IsValidFolder("Assets/Models"))
+            AssetDatabase.CreateFolder("Assets", "Models");
+        var existing = AssetDatabase.LoadAssetAtPath<Mesh>(path);
+        if (existing != null)
+        {
+            EditorUtility.CopySerialized(mesh, existing);
+            return existing;
+        }
+        AssetDatabase.CreateAsset(mesh, path);
+        return mesh;
     }
 
     static Transform FindChild(Transform parent, string name)
