@@ -375,9 +375,9 @@ def confirm(args, n):
         return True
     if args.real:
         return input("Build %d bricks on the REAL robot? Speed slider low, e-stop in hand. [y/N] " % n).strip().lower() == "y"
-    # Simulation only: build straight away. Waiting for "y" here meant a new wall from the headset sat unbuilt
-    # while RoboDK still showed the previous one (Jin's test, 19 Oct). The real robot always asks.
-    return True
+    # Asking in the simulation too gives the user time to take the headset off and watch the screen (Jin, 19 Oct).
+    # Remember: a new wall from the headset is only built after answering here.
+    return input("Run %d bricks in the simulation? [Y/n] " % n).strip().lower() != "n"
 
 
 def handle(layout, tf, backend, args):
