@@ -266,6 +266,15 @@ class RoboDKBackend:
         self.travel_to(T)
 
     def run(self, jobs):
+        # RoboDK may have been restarted or the station reloaded since we connected (the listener can run
+        # for hours); the old robot/tool handles are then invalid ("Invalid item provided"). Reconnect.
+        try:
+            stale = not self.robot.Valid() or not self.tool.Valid()
+        except Exception:
+            stale = True
+        if stale:
+            log("RoboDK station changed since connecting - reconnecting")
+            self.__init__(self.real, self.tf)
         self.show_bricks(jobs)
         self.go_home()
         self.grip(False)                                      # start with the gripper open
