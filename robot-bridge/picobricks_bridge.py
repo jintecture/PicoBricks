@@ -222,8 +222,8 @@ class RoboDKBackend:
         self.home = self.robot.Joints()
 
     # ---- visible bricks in the simulation ----
-    def box(self, name):
-        hx, hy, hz = BRICK_W / 2, BRICK_L / 2, BRICK_H / 2
+    def box(self, name, height=BRICK_H, color=(0.62, 0.42, 0.24, 1.0)):
+        hx, hy, hz = BRICK_W / 2, BRICK_L / 2, height / 2
         v = [[sx * hx, sy * hy, sz * hz] for sx in (-1, 1) for sy in (-1, 1) for sz in (-1, 1)]
         faces = [(0, 1, 3, 2), (4, 6, 7, 5), (0, 4, 5, 1), (2, 3, 7, 6), (0, 2, 6, 4), (1, 5, 7, 3)]
         tris = []
@@ -231,7 +231,7 @@ class RoboDKBackend:
             tris += [v[a], v[b], v[c], v[a], v[c], v[d]]
         obj = self.RDK.AddShape(tris)
         obj.setName(name)
-        obj.setColor([0.62, 0.42, 0.24, 1.0])
+        obj.setColor(list(color))
         obj.setParent(self.base)
         return obj
 
@@ -239,11 +239,19 @@ class RoboDKBackend:
         for it in self.RDK.ItemList(self.rl.ITEM_TYPE_OBJECT) + self.RDK.ItemList(self.rl.ITEM_TYPE_TARGET):
             if it.Name().startswith("PB_"):
                 it.Delete()
+        # The big coordinate arrows on the robot base and the tool hide the bricks: show the items, not their frames
+        for item in (self.base, self.tool):
+            try:
+                item.setVisible(True, False)
+            except Exception:
+                pass
         for name, P, Q, pc, qc in jobs:
             obj = self.box("PB_" + name)
             obj.setPose(self.rm.transl(pc[0], pc[1], pc[2]) * self.rm.rotz(math.radians(pc[3])))
             self.bricks[name] = obj
-            self.RDK.AddTarget("PB_place_" + name, self.base).setPose(self.pose(*Q))
+            # Where the brick will go: a flat, see-through green footprint (instead of a large target arrow)
+            ghost = self.box("PB_place_" + name, height=2.0, color=(0.2, 0.75, 0.4, 0.35))
+            ghost.setPose(self.rm.transl(qc[0], qc[1], qc[2] - BRICK_H / 2 + 1.0) * self.rm.rotz(math.radians(qc[3])))
 
     def grip(self, close, name=None):
         self.robot.setDO(GRIP_DO, GRIP_CLOSE_VALUE if close else 1 - GRIP_CLOSE_VALUE)
