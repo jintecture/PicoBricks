@@ -85,12 +85,12 @@ public class BrickSender : MonoBehaviour
 #endif
         var right = InputDevices.GetDeviceAtXRNode(XRNode.RightHand);
         if (!right.isValid) return;
-        right.TryGetFeatureValue(CommonUsages.primaryButton, out bool aDown); // A
+        right.TryGetFeatureValue(UnityEngine.XR.CommonUsages.primaryButton, out bool aDown); // A
         if (aDown && !aWasDown) StartCoroutine(SendSoon(right));
         aWasDown = aDown;
     }
 
-    IEnumerator SendSoon(InputDevice hand)
+    IEnumerator SendSoon(UnityEngine.XR.InputDevice hand) // XR controller (InputSystem also has an InputDevice)
     {
         for (int i = 0; i < framesAfterA; i++) yield return null;
         int n = Send();

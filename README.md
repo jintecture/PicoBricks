@@ -13,7 +13,7 @@ Part of the Creative Robotics group project (TU Delft, ARIT1507, Oct 2026).
 
 **Versions**
 - **v1: manual placement** (tag [`v1-manual-placement`](../../tree/v1-manual-placement), 15 Oct 2026): grab and place bricks by hand, grid snap, table calibration, pickup tray.
-- **v2: wall from a drawn curve** (in progress, branch `wall-builder`): draw a curve on the table, choose 1–3 layers, the 6 bricks build the wall. Iteration 1 = **rectangle** (6 × 1, 3 × 2, 2 × 3); iteration 2 = **triangle** (3 + 2 + 1, later). Then preview with an AR robot, then the real robot builds it.
+- **v2: wall from a drawn curve** (on main since 18 Oct): draw a curve on the table, choose 1–3 layers, the 6 bricks build the wall. Iteration 1 = **rectangle** (6 × 1, 3 × 2, 2 × 3); iteration 2 = **triangle** (3 + 2 + 1, later). Then preview with an AR robot, then the real robot builds it.
 
 ---
 
@@ -53,6 +53,9 @@ The **white ball** in front of the right controller is the measuring tip for cal
 | `Assets/Scripts/BrickControls.cs` | X and Y buttons; puts bricks back if they fall off the world. |
 | `Assets/Scripts/TableCalibration.cs` | 4-point table calibration (B + trigger). |
 | `Assets/Scripts/WallBuilder.cs` | **v2:** draw the curve (trigger), choose layers (thumbstick), build the wall (A), save `wall_plan.json` for the robot. Wall patterns are planned here (rectangle now, triangle next). |
+| `Assets/Scripts/BrickSender.cs` | (Parjanya) After **A**, sends every moved brick (pick = tray pocket, place = wall spot) over Wi-Fi to the laptop for the robot. See `robot-bridge/`. |
+| `Assets/Scripts/BrickCsvExporter.cs` | (Matthias) Writes `scene_objects.csv`: table and brick positions/rotations, axes swapped for Rhino. |
+| `robot-bridge/` | (Parjanya) Laptop side of the robot link: `picobricks_bridge.py` + `PICOBRICKS.bat` menu, RoboDK simulation and UR5. Own README. |
 | `Assets/Editor/TrayMeshImporter.cs` | Turns the tray STL into a Unity mesh, so the scene uses exactly the printed tray. |
 | `Assets/Scripts/BrickSnap.cs` | v1 only, **switched off in v2** (`AddGridSnap` in `BrickSceneSetup.cs`). Grid snap on release (one per brick): lying/standing, 90° turns, centred stacking or 5 cm table grid, lock in place, bricks above drop when one is removed. `BrickSnap.AlignToBelow` switches centred stacking off (half-brick offsets allowed). |
 | `Assets/Materials/` | Colours for the bricks (Wood), table, floor, wall line (cyan) and build area (white). |
