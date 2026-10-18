@@ -320,7 +320,9 @@ Two iterations are planned: **rectangle** first (every layer the same length), t
 - No hotspot needed at home: headset and laptop on the same Wi-Fi, and `BrickSender` also broadcasts, so the laptop received it.
 - ✅ **Headset → laptop works:** drew a curve, pressed A, and the bridge (menu 3) printed all 6 bricks with pick (tray pocket) and place (wall) in robot coordinates.
 - ❌ RoboDK step failed: "Invalid item provided". Cause: RoboDK had been reopened (station without a UR5) in the hours since the listener started, so the bridge's stored robot handle was dead. **Fix:** the bridge now reconnects before each run. Load the UR5 again and replay with menu 4 (`last_layout.json`) or press A again in the headset.
-- Still placeholder `calib.json`: the wall's shape is right in RoboDK, its position relative to the robot isn't (needs the corner measurement at the real robot, menu 5).
+- Then "Target cannot be reached": the placeholder put the table 75 cm from the robot, and the tray (at the front-left corner of Jin's ~1.3 m wide desk) ended up 83-88 cm from the base. The UR5 reaches 85 cm at most, less with the tool pointing down. Placeholder moved to 55 cm (`calib.example.json`) → ✅ **RoboDK built the whole headset wall** (6 bricks).
+- **Lesson for the real setup:** tray and build area must stay within ~60-70 cm of the robot base. Position the tray deliberately within reach on the robot's table, and limit the drawing area to the reachable zone later.
+- Still placeholder `calib.json`: the real positions need the corner measurement at the robot (menu 5).
 
 ---
 
