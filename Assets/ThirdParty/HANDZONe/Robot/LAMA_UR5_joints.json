@@ -1,0 +1,14 @@
+{
+  "joints": [
+    { "path": "UR5/Polyscope_hp_joined/1_Body_reduced", "dir": [0, 0, -1], "initialEuler": [270.0198, 180, 0] },
+    { "path": "UR5/Polyscope_hp_joined/1_Body_reduced/2_BodyEnd_reduced", "dir": [0, 0, -1], "initialEuler": [90, -6.83019E-05, 0] },
+    { "path": "UR5/Polyscope_hp_joined/1_Body_reduced/2_BodyEnd_reduced/3_BodyEnd_reduced", "dir": [0, 0, 1], "initialEuler": [-8.651438E-06, 180, 180] },
+    { "path": "UR5/Polyscope_hp_joined/1_Body_reduced/2_BodyEnd_reduced/3_BodyEnd_reduced/4_Body_reduced", "dir": [0, 0, -1], "initialEuler": [8.651431E-06, 180, 180] },
+    { "path": "UR5/Polyscope_hp_joined/1_Body_reduced/2_BodyEnd_reduced/3_BodyEnd_reduced/4_Body_reduced/5_Body_reduced", "dir": [0, 0, -1], "initialEuler": [270, 8.651423E-06, 0] },
+    { "path": "UR5/Polyscope_hp_joined/1_Body_reduced/2_BodyEnd_reduced/3_BodyEnd_reduced/4_Body_reduced/5_Body_reduced/6_MetalBodyEnd_reduced", "dir": [0, 0, 1], "initialEuler": [270.0198, 180, 0] }
+  ],
+  "robotBaseLocal": [0.4661, 0.0000, 0.9130],
+  "robotLocalEuler": [0.00, 90.00, 90.00],
+  "tableBoundsLocalMin": [0.7050, 0.3109, 0.0000],
+  "tableBoundsLocalMax": [-0.7213, -0.3000, 0.9120]
+}
