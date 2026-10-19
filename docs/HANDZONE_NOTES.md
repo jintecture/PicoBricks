@@ -20,7 +20,7 @@ We don't run HANDZONe itself. We reuse **only its 3D models**: the **UR5 with it
 - So the model can be posed with exactly the same 6 joint angles the real UR5 (or RoboDK) uses. That's what the ghost robot preview needs.
 - HANDZONe gets those angles from its server (live from the robot or from URSim), and for "grab the robot" interactions asks the server for inverse kinematics. We'll get them from RoboDK through the robot bridge instead (route B, see DEVLOG).
 
-## How it was brought over (2026-10-20)
+## How it was brought over (2026-10-19)
 Copying the prefab files by hand would also bring HANDZONe's scripts (server connection, Socket.IO, VR menus), which don't compile here. Instead:
 1. A temporary editor script was run inside HANDZONe (Unity batch mode, no window): it opened `MainMenu.unity`, copied `RobotArmClean` (UR5 + gripper) and the `Table.fbx` instance into one new prefab **keeping their relative positions**, removed all scripts, animators and gizmos, read the joint list from `RobotArm.prefab`'s `RobotManager`, and exported a Unity package (models, materials, textures only).
 2. The package was imported into PicoBricks and moved into `Assets/ThirdParty/HANDZONe/` (files moved with their `.meta` files, so all references stay intact).
