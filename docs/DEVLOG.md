@@ -352,6 +352,26 @@ What **PicoBricks → Setup Brick Scene** now does:
 
 **Next:** build onto the headset and check the ghost stands on the real robot. Then the bridge sends RoboDK's joint movements back, the ghost animates pick and place with ghost bricks, and the user confirms in the headset.
 
+## 2026-10-19 (afternoon): Drawing area, tray in the corner, and the ghost robot builds the wall
+
+**First headset test of the ghost (at home):** the robot, tray and messages showed up. But the reachable drawing spot (behind the tray, next to the robot) was awkward, and the orange reach arc didn't make clear where to draw. Jin: move the tray to a corner where the robot can still reach it, leave room for drawing, and put a **black line around the drawing area**.
+
+- **Tray:** the real corners next to the robot are taken by its own base (an arm can't pick that close to itself), and the left corners are out of reach. So the tray now sits in the **back corner beside the robot** (right edge 16 cm left of the base centre, 3 cm from the back edge).
+- **Drawing area:** a **black rectangle in front of the tray, on the user's side**: from the front edge to just before the tray, the left edge where the robot's reach ends, the right edge 20 cm before the robot. On the LAMA table that's about **44 × 27 cm**. The laser drawing stays inside it. The orange arc was removed; the reach check still runs as a safety net (`WallBuilder.drawArea`, computed in `BrickSceneSetup`).
+- Jin's observation: the robot can probably reach much more than this. True: 70 cm reach and the rectangle are cautious guesses. **To do later:** measure the real reach (with the gripper) and let the area follow it.
+
+**Headset → laptop → headset: the ghost robot builds the wall** (route B, step 2):
+1. **A** in the headset: `BrickSender` sends the bricks (pick + place) **plus where the ghost robot stands** and a few of its test poses.
+2. The bridge works out every joint angle of the robot's moves (go above the tray pocket, straight down, grip, up, over to the wall, down, release, ...): the same moves the robot will make. About 200 poses for 6 bricks.
+3. It sends them back to the headset (**UDP 5006**). **`GhostPlayer.cs`** puts the bricks back in the tray and the ghost picks them up and builds the wall, with a progress label above the robot ("picking Brick_3 (3/6)"). At the end: "On the laptop: Run? [Y/n]".
+4. ✅ **Worked in the headset on the first try** (Jin, at home).
+
+**Why not RoboDK (decision, 19 Oct, Jin):** RoboDK's trial licence on Jin's laptop had expired. The free licence refuses most commands from our script ("API calls are limited"), so it couldn't work out the ~200 poses. Options were (A) find a TU Delft RoboDK licence, or (B) do the UR5's joint maths ourselves. **Chose B**: `robot-bridge/ur5_kinematics.py`, the standard closed-form UR5 solution (Hawkins 2013), plain Python, no licence, works on every laptop. Tested: 2000 random poses, 0.000 mm error; with a fake headset, every brick picked and placed within 0.1 mm. Bonus: the ghost shows exactly the joint angles the real robot will get, because the same maths produces both. RoboDK's laptop simulation (menu 1 and 4) now needs a licence; menu **3** = ghost robot in the headset, no RoboDK.
+
+**Lining up the ghost and the maths automatically:** the headset sends which way the ghost's arm points at "all joints 0" and with the base turned 90°. The bridge compares that with the maths and turns its robot to match. It also compares the ghost's hand position for 3 test poses with the maths and prints either "ghost robot matches the UR5 maths" or a warning that a joint turns the wrong way.
+
+Parjanya's bridge stays (Wi-Fi link, table frame, calibration, URScript to the real robot). Only the "ask RoboDK" step is replaced for the preview. **Parjanya Singh and Matthias Nahum should know**, because it affects the robot-route decision.
+
 ---
 
 ## Still to do
@@ -363,8 +383,11 @@ What **PicoBricks → Setup Brick Scene** now does:
 - [ ] **Robot in AR:** ghost UR5 in the headset showing pick + place before the real robot moves (lecturer, HANDZONe)
   - [x] Step 1: ghost UR5 + LAMA table placed, tray next to the robot, reach check + arc (19 Oct)
   - [ ] Check in the headset that the ghost stands on the real robot
-  - [ ] Check joint directions against RoboDK (same angles → same gripper spot)
-  - [ ] Bridge sends RoboDK joint movements back; ghost animates pick/place; confirm in the headset
+  - [x] Joint directions: checked automatically by the bridge against the UR5 maths (19 Oct)
+  - [x] Bridge sends the joint movements back; ghost builds the wall in the headset (19 Oct, own UR5 maths instead of RoboDK)
+  - [ ] Confirm in the headset (then the laptop's Run? [Y/n] stays as second check)
+  - [ ] Real robot: send the same joint angles (movej with joints) so the robot does exactly what the ghost showed
+  - [ ] Measure the robot's real reach with the gripper; make the drawing area follow it
 - [ ] Team decision: robot route (Parjanya's RoboDK bridge vs Matthias's Grasshopper) + one brick-list format
 - [ ] Test `BrickSender` + `robot-bridge` (RoboDK simulation, no robot needed)
 - [ ] **v2 triangle:** 3 + 2 + 1 pattern

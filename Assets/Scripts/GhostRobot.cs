@@ -28,16 +28,73 @@ public class GhostRobot : MonoBehaviour
     [Tooltip("Joint angles (degrees) shown at start: a tool-down pose above the table")]
     public float[] homeDegrees = { 0f, -90f, -90f, -90f, 90f, 0f };
 
+    /// <summary>Current joint angles (degrees, real UR5 convention).</summary>
+    public float[] Current { get; private set; } = new float[6];
+
+    /// <summary>The last arm part (wrist 3 / flange): bricks being carried follow this.</summary>
+    public Transform Flange => joints != null && joints.Length > 0 ? joints[joints.Length - 1] : transform;
+
     void Start()
     {
         if (passthrough != null && tableRenderers != null)
             foreach (var r in tableRenderers) passthrough.HideWhenOn(r);
         SetJointsDegrees(homeDegrees);
+        // Plays the robot movements RoboDK sends back (see GhostPlayer.cs)
+        if (GetComponent<GhostPlayer>() == null) gameObject.AddComponent<GhostPlayer>();
+    }
+
+    /// <summary>
+    /// Which way the arm points (degrees, counter-clockwise from the table's x axis, seen from above) with base angle
+    /// `baseDeg` and all other joints 0. Measured as the difference between "shoulder 0" and "shoulder -90", so the
+    /// sideways offsets of the wrist cancel out. The robot bridge compares this with RoboDK's UR5 to line both up.
+    /// </summary>
+    public float ArmYaw(float baseDeg)
+    {
+        var keep = (float[])Current.Clone();
+        var ws = transform.parent;
+        SetJointsDegrees(new[] { baseDeg, 0f, 0f, 0f, 0f, 0f });
+        Vector3 a = ws.InverseTransformPoint(Flange.position);
+        SetJointsDegrees(new[] { baseDeg, -90f, 0f, 0f, 0f, 0f });
+        Vector3 b = ws.InverseTransformPoint(Flange.position);
+        SetJointsDegrees(keep);
+        Vector3 d = a - b;
+        return Mathf.Atan2(d.z, d.x) * Mathf.Rad2Deg; // table frame: x right, z (Unity) = away from the user
+    }
+
+    /// <summary>Test poses for the bridge's self-check (the same list is in picobricks_bridge.py).</summary>
+    public static readonly float[][] CheckPoses =
+    {
+        new[] { 0f, -90f, -90f, -90f, 90f, 0f },
+        new[] { 30f, -60f, -100f, -60f, 90f, 0f },
+        new[] { -45f, -120f, 60f, -30f, -90f, 45f },
+    };
+
+    /// <summary>
+    /// Where the hand (flange) is for each check pose, relative to the base, in the bridge's table axes
+    /// (x right, y away, z up; metres). The bridge compares this with its UR5 maths: a joint turning the wrong way
+    /// shows up as tens of centimetres difference.
+    /// </summary>
+    public float[] CheckPositions()
+    {
+        var keep = (float[])Current.Clone();
+        var ws = transform.parent;
+        var result = new float[CheckPoses.Length * 3];
+        for (int i = 0; i < CheckPoses.Length; i++)
+        {
+            SetJointsDegrees(CheckPoses[i]);
+            Vector3 p = ws.InverseTransformPoint(Flange.position) - baseInWorkspace;
+            result[i * 3] = p.x;
+            result[i * 3 + 1] = p.z;
+            result[i * 3 + 2] = p.y;
+        }
+        SetJointsDegrees(keep);
+        return result;
     }
 
     /// <summary>Pose the arm. Angles in degrees, UR5 joint order (base, shoulder, elbow, wrist 1, 2, 3).</summary>
     public void SetJointsDegrees(float[] degrees)
     {
+        for (int i = 0; i < Current.Length && i < degrees.Length; i++) Current[i] = degrees[i];
         for (int i = 0; i < joints.Length && i < degrees.Length; i++)
             if (joints[i] != null)
             {

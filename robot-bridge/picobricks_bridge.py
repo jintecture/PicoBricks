@@ -17,6 +17,11 @@ Easiest: double-click PICOBRICKS.bat and pick a number. Or by hand:
   python picobricks_bridge.py run --real                    # RoboDK drives the real UR5
   python picobricks_bridge.py run --backend urscript --real # no RoboDK: URScript straight to the UR5
   python picobricks_bridge.py run --backend print           # only print the robot targets
+  python picobricks_bridge.py run --backend ghost           # headset's ghost robot acts it out, nothing else moves
+
+After every wall the bridge also sends the robot's movements (joint angles from ur5_kinematics.py) back to the
+headset on UDP 5006, where the ghost UR5 plays them (GhostPlayer.cs). In simulation the robot is placed where the
+headset's ghost robot stands; the real robot uses calib.json.
 
 Needs:  python -m pip install robodk     (only for --backend robodk, the default)
 """
@@ -28,12 +33,16 @@ import socket
 import sys
 import time
 
+import ur5_kinematics as kin                 # own UR5 joint maths (robot-bridge/ur5_kinematics.py)
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 CALIB_FILE = os.path.join(HERE, "calib.json")
 
 # ======================= settings you may want to change =======================
 ROBOT_IP = "192.168.1.198"
 UDP_PORT = 5005
+PREVIEW_PORT = 5006     # the headset listens here for the robot movements (ghost UR5 preview, GhostPlayer.cs)
+PREVIEW_STEPS = 4       # straight (MoveL) moves are sent as this many in-between poses
 
 # Gripper (soft/parallel gripper picking the brick from the top)
 GRIP_DO = 0             # standard digital output that closes the gripper
@@ -85,6 +94,55 @@ class TableFrame:
         """table pose (m, deg) -> robot (x, y, z mm, yaw deg) of the brick centre."""
         x, y, z = self.point(p["x"] * 1000, p["y"] * 1000, p["z"] * 1000)
         return x, y, z, self.yaw0 + p["yaw"]
+
+
+GHOST_CHECK_POSES = [[0, -90, -90, -90, 90, 0], [30, -60, -100, -60, 90, 0], [-45, -120, 60, -30, -90, 45]]  # = GhostRobot.CheckPoses
+
+
+def ghost_frame(robot, kin_yaw0, kin_yaw90):
+    """Simulation only: a table frame that puts the simulated robot exactly where the headset's ghost UR5 stands.
+
+    robot = the headset's `robot` message: ghost base (x, y, z m, table frame) and the direction the ghost's arm
+    points with all joints 0 (armYaw0) and with the base turned to 90 deg (armYaw90), degrees CCW from table x.
+    kin_yaw0 / kin_yaw90 = the same directions from the UR5 maths, in the robot's own base frame. Their difference
+    is how the robot is turned on the table. Then the movements worked out here are the ones the ghost can play."""
+    psi = math.radians(robot["armYaw0"] - kin_yaw0)          # robot base x axis, seen in the table frame
+    # check that the ghost's base joint turns the same way as the maths
+    turn_ghost = (robot["armYaw90"] - robot["armYaw0"]) % 360
+    turn_kin = (kin_yaw90 - kin_yaw0) % 360
+    if abs(turn_ghost - turn_kin) > 10:
+        log("!! ghost and UR5 maths turn the base joint differently (%.0f vs %.0f deg) - the preview will be wrong"
+            % (turn_ghost, turn_kin))
+    check_ghost(robot, psi)
+    bx, by, bz = robot["x"] * 1000, robot["y"] * 1000, robot["z"] * 1000
+    c, s = math.cos(-psi), math.sin(-psi)
+
+    def to_robot(tx, ty):                                    # table mm -> robot base mm
+        dx, dy = tx - bx, ty - by
+        return [c * dx - s * dy, s * dx + c * dy, -bz]
+    log("simulation: robot placed like the headset's ghost (base %.0f, %.0f mm on the table, turned %.0f deg)"
+        % (bx, by, math.degrees(psi)))
+    return TableFrame(to_robot(-500, 0), to_robot(500, 0))
+
+
+def check_ghost(robot, psi):
+    """Compare the ghost's hand position (sent by the headset) with the UR5 maths for a few test poses.
+    The two measure slightly different points of the hand (a few cm); a joint turning the wrong way = tens of cm."""
+    check = robot.get("check") or []
+    if len(check) < 3 * len(GHOST_CHECK_POSES):
+        return
+    c, s = math.cos(psi), math.sin(psi)
+    worst = 0.0
+    for i, q in enumerate(GHOST_CHECK_POSES):
+        T = kin.forward(q)
+        x, y, z = T[0][3], T[1][3], T[2][3]
+        mx, my = c * x - s * y, s * x + c * y              # robot base -> table axes
+        gx, gy, gz = (v * 1000 for v in check[3 * i: 3 * i + 3])
+        worst = max(worst, math.sqrt((mx - gx) ** 2 + (my - gy) ** 2 + (z - gz) ** 2))
+    if worst > 150:
+        log("!! ghost robot and UR5 maths disagree by up to %.0f mm - a joint of the ghost turns the wrong way" % worst)
+    else:
+        log("ghost robot matches the UR5 maths (within %.0f mm)" % worst)
 
 
 def load_calib():
@@ -273,7 +331,7 @@ class RoboDKBackend:
         self.robot.MoveL(self.pose(x, y, z + APPROACH, yaw))
         self.travel_to(T)
 
-    def run(self, jobs):
+    def ensure_connected(self):
         # RoboDK may have been restarted or the station reloaded since we connected (the listener can run
         # for hours); the old robot/tool handles are then invalid ("Invalid item provided"). Reconnect.
         try:
@@ -283,6 +341,9 @@ class RoboDKBackend:
         if stale:
             log("RoboDK station changed since connecting - reconnecting")
             self.__init__(self.real, self.tf)
+
+    def run(self, jobs):
+        self.ensure_connected()
         self.show_bricks(jobs)
         self.go_home()
         self.grip(False)                                      # start with the gripper open
@@ -366,7 +427,11 @@ class PrintBackend:
             log("would hover 30 mm above", ["%.1f" % v for v in p])
 
 
-BACKENDS = {"robodk": RoboDKBackend, "urscript": URScriptBackend, "print": PrintBackend}
+class GhostBackend(PrintBackend):
+    """Only the ghost robot in the headset moves (no RoboDK, no robot)."""
+
+
+BACKENDS = {"robodk": RoboDKBackend, "urscript": URScriptBackend, "print": PrintBackend, "ghost": GhostBackend}
 
 
 # ---------------- commands ----------------
@@ -380,12 +445,95 @@ def confirm(args, n):
     return input("Run %d bricks in the simulation? [Y/n] " % n).strip().lower() != "n"
 
 
-def handle(layout, tf, backend, args):
+# ---------------- ghost preview: the robot's movements as joint angles (own UR5 maths, no RoboDK) ----------------
+def arm_yaw(base_deg):
+    """Direction the arm points (deg, robot base frame) with base joint `base_deg` and all others 0."""
+    a = kin.forward([base_deg, 0, 0, 0, 0, 0])
+    b = kin.forward([base_deg, -90, 0, 0, 0, 0])
+    return math.degrees(math.atan2(a[1][3] - b[1][3], a[0][3] - b[0][3]))
+
+
+def preview(jobs, tf):
+    """The same moves as RoboDKBackend.run(), as joint angles for the headset's ghost robot:
+    list of {"j": 6 angles in deg, "grip": "close"/"open", "brick": name}."""
+    frames = []
+
+    def ik(T, seed):
+        x, y, z, yaw = T
+        flange = kin.mul(kin.tcp_pose(x, y, z, yaw), kin.transl(0, 0, -TOOL_LENGTH))
+        q = kin.inverse(flange, seed)
+        if q is None:
+            raise ValueError("the robot can't reach x %.0f y %.0f z %.0f mm" % (x, y, z))
+        return q
+
+    def add(q, **extra):
+        frames.append(dict(j=[round(v, 2) for v in q], **extra))
+
+    def straight(a, b, q):                       # MoveL: a few poses on the straight line
+        for i in range(1, PREVIEW_STEPS + 1):
+            f = i / PREVIEW_STEPS
+            q = ik([a[k] + (b[k] - a[k]) * f for k in range(4)], q)
+            add(q)
+        return q
+
+    q = [float(v) for v in HOME_JOINTS]
+    add(q)
+    cx, cy, cz = tf.point(0, 300, TRAVEL_Z)
+    try:
+        q = ik((cx, cy, cz, tf.yaw0 + 90), q)
+        add(q)
+    except ValueError:
+        pass
+    home = list(q)
+    for name, P, Q, _, _ in jobs:
+        for T, grip in ((P, "close"), (Q, "open")):
+            x, y, z, yaw = T
+            travel = (x, y, max(z + APPROACH, tf.origin[2] + TRAVEL_Z), yaw)
+            up, at = (x, y, z + APPROACH, yaw), (x, y, z, yaw)
+            q = ik(travel, q)
+            add(q)
+            q = straight(travel, up, q)
+            q = straight(up, at, q)
+            frames[-1].update(grip=grip, brick=name)
+            q = straight(at, up, q)
+            q = straight(up, travel, q)
+    add(home)
+    return frames
+
+
+def send_preview(layout, tf, jobs, backend, sock, addr):
+    """Work out the robot's movements in RoboDK and send them to the headset, where the ghost UR5 plays them."""
+    msg = {"type": "preview", "seq": layout.get("seq", 0)}
+    try:
+        msg["frames"] = preview(jobs, tf)
+        log("sent the robot movements to the headset (%d poses) - watch the ghost robot" % len(msg["frames"]))
+    except Exception as e:
+        msg["error"] = str(e)
+        log("!! preview failed:", e)
+    try:
+        sock.sendto(json.dumps(msg).encode(), (addr, PREVIEW_PORT))
+    except OSError as e:
+        log("!! couldn't send the preview to the headset:", e)
+
+
+def handle(layout, tf, backend, args, sock=None, addr=None):
+    # Simulation: stand RoboDK's robot where the headset's ghost robot stands (the real robot uses calib.json)
+    robot = layout.get("robot") or {}
+    if robot.get("valid") and not args.real:
+        try:
+            tf = ghost_frame(robot, arm_yaw(0), arm_yaw(90))
+            backend.tf = tf
+        except Exception as e:
+            log("!! couldn't line the robot up with the ghost robot, using calib.json:", e)
     jobs = plan(layout, tf, args)
     log("layout seq %s: %d bricks received, %d to build" % (layout.get("seq"), len(layout.get("bricks", [])), len(jobs)))
     if not jobs:
         return
     print_jobs(jobs)
+    if sock is not None and addr:
+        send_preview(layout, tf, jobs, backend, sock, addr)
+    if isinstance(backend, GhostBackend):
+        return                                    # preview only, nothing else moves
     if confirm(args, len(jobs)):
         try:
             backend.run(jobs)
@@ -434,7 +582,7 @@ def cmd_run(args):
         log("from headset", addr[0])
         with open(os.path.join(HERE, "last_layout.json"), "w") as f:
             json.dump(layout, f, indent=2)       # replay later with --file last_layout.json
-        handle(layout, tf, backend, args)
+        handle(layout, tf, backend, args, sock, addr[0])
 
 
 def cmd_corners(args):

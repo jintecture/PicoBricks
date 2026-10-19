@@ -36,10 +36,14 @@ public static class BrickSceneSetup
     const string GhostPrefabPath = "Assets/ThirdParty/HANDZONe/Robot/LAMA_UR5.prefab";
     const string GhostJointsPath = "Assets/ThirdParty/HANDZONe/Robot/LAMA_UR5_joints.json";
     static readonly Color GhostColour = new Color(0.8f, 0.9f, 1f, 0.35f);  // pale blue, see-through
-    // Pickup tray: along the front edge, its centre this far left of the robot base (within reach)
-    const float TrayDistanceFromRobot = 0.40f;
-    const float TrayFromFrontEdge = 0.03f;
+    // Pickup tray: in the back corner beside the robot (the real corners are taken by the robot's own base, the far
+    // ones are out of reach). Its right edge this far left of the robot base centre, its back edge 3 cm from the back.
+    const float TrayRightEdgeFromRobot = 0.16f;
+    const float EdgeMargin = 0.03f;
     static readonly Vector2 TraySize = new Vector2(0.229f, 0.250f);
+    // Drawing area (black outline): in front of the tray, from the user's edge back; its right edge this far left of
+    // the robot base, its left edge where the robot's reach ends
+    const float DrawAreaFromRobot = 0.20f;
 
     // Same as the menu, without opening the Unity window:
     // Unity.exe -batchmode -quit -projectPath <PicoBricks> -executeMethod BrickSceneSetup.SetupFromCommandLine
@@ -111,6 +115,7 @@ public static class BrickSceneSetup
         var ghostMat = GetOrCreateTransparentMaterial("Assets/Materials/GhostRobot.mat", GhostColour);
         var ghost = PlaceGhostRobot(workspace.transform, ghostMat);
         Vector2 trayOffset = Vector2.zero;
+        Rect drawArea = default;
         if (ghost != null)
         {
             table.transform.localScale = new Vector3(ghost.Width, ghost.Height, ghost.Depth);
@@ -118,9 +123,22 @@ public static class BrickSceneSetup
             floor.transform.localPosition = new Vector3(0f, -ghost.Height, 0f);
             // The ghost LAMA table is the visible table now; the grey box only stays for its collider and size
             table.GetComponent<Renderer>().enabled = false;
-            // Tray within the robot's reach: along the front edge, left of the robot
-            float trayCentreX = ghost.Component.baseInWorkspace.x - TrayDistanceFromRobot;
-            trayOffset = new Vector2(trayCentreX - TraySize.x / 2f + ghost.Width / 2f, TrayFromFrontEdge);
+            // Tray in the back corner beside the robot
+            Vector3 robotBase = ghost.Component.baseInWorkspace;
+            float trayLeft = robotBase.x - TrayRightEdgeFromRobot - TraySize.x;
+            float trayFront = ghost.Depth - EdgeMargin - TraySize.y;
+            trayOffset = new Vector2(trayLeft + ghost.Width / 2f, trayFront);
+
+            // Drawing area: from the front edge to just before the tray; left edge where every point is still
+            // within the robot's reach
+            float front = EdgeMargin, back = trayFront - EdgeMargin;
+            float dz = Mathf.Max(Mathf.Abs(front - robotBase.z), Mathf.Abs(back - robotBase.z));
+            float reachX = Mathf.Sqrt(ghost.Component.maxReach * ghost.Component.maxReach - dz * dz);
+            float left = Mathf.Max(-ghost.Width / 2f + EdgeMargin, robotBase.x - reachX);
+            float right = robotBase.x - DrawAreaFromRobot;
+            drawArea = Rect.MinMaxRect(left, front, right, back);
+            Debug.Log($"PicoBricks: tray at x {trayLeft:F3}, z {trayFront:F3}; drawing area x {left:F3}..{right:F3}, " +
+                      $"z {front:F3}..{back:F3} ({drawArea.width * 100f:F0} x {drawArea.height * 100f:F0} cm)");
         }
 
         // The printed pickup tray (TableCalibration keeps it at trayOffset from the table's front-left corner).
@@ -221,7 +239,8 @@ public static class BrickSceneSetup
             {
                 ghost.Component.passthrough = passthrough;
                 wall.robot = ghost.Component;
-                wall.reachMaterial = GetOrCreateMaterial("Assets/Materials/RobotReach.mat", new Color(1f, 0.6f, 0.1f), unlit: true);
+                wall.drawArea = drawArea;
+                wall.zoneMaterial = GetOrCreateMaterial("Assets/Materials/DrawArea.mat", Color.black, unlit: true);
             }
         }
 

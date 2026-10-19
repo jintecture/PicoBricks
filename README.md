@@ -24,8 +24,9 @@ Part of the Creative Robotics group project (TU Delft, ARIT1507, Oct 2026).
 - **Choose the number of layers (1–3).** With 6 bricks: 1 layer = 6 bricks long (60 cm), 2 layers = 3 × 2 (30 cm), 3 layers = 2 × 3 (20 cm).
 - Press **OK (A)** and the bricks build the wall: lying flat, along the curve, stacked straight up. If it doesn't fit on the table, you're asked to draw again.
 - Every built wall is saved as a **brick list for the robot** (`wall_plan.json` on the headset: build order, layer, position and angle of each brick in table coordinates).
-- A see-through **ghost UR5** stands on the table where the real robot is (LAMA table, user at the long side, robot on the right; models from HANDZONe). Walls the robot can't reach are refused; its reach is the **orange arc** on the table. Next: the ghost acts out the build before the real robot moves.
-- The 6 bricks start in the **pickup tray** next to the robot (along the front edge, within its reach): the same tray we 3D-print ([`hardware/pickup-tray`](hardware/pickup-tray)). They can be grabbed; building a wall takes them from the tray.
+- A see-through **ghost UR5** stands on the table where the real robot is (LAMA table, user at the long side, robot on the right; models from HANDZONe). You draw inside the **black rectangle** (the part of the table the robot can reach, in front of the tray).
+- **The ghost robot builds your wall first:** after **A**, the laptop (`robot-bridge`, menu 3) works out every robot movement and sends it back; the ghost picks the bricks from the tray and builds the wall, exactly as the real robot will.
+- The 6 bricks start in the **pickup tray** in the back corner beside the robot: the same tray we 3D-print ([`hardware/pickup-tray`](hardware/pickup-tray)). They can be grabbed; building a wall takes them from the tray.
 - Bricks are **brown, 70 % see-through, with black edges**, so each brick is readable in a built wall.
 
 ## Controls (in the headset)
@@ -55,6 +56,8 @@ The **white ball** in front of the right controller is the measuring tip for cal
 | `Assets/Scripts/TableCalibration.cs` | 4-point table calibration (B + trigger). |
 | `Assets/Scripts/WallBuilder.cs` | **v2:** draw the curve (trigger), choose layers (thumbstick), build the wall (A), save `wall_plan.json` for the robot. Wall patterns are planned here (rectangle now, triangle next). |
 | `Assets/Scripts/GhostRobot.cs` | The see-through UR5: poses it with real UR5 joint angles, and checks whether a point is within the robot's reach. Placed by the scene setup. |
+| `Assets/Scripts/GhostPlayer.cs` | Receives the robot movements from the laptop (UDP 5006) and plays them on the ghost robot: bricks back to the tray, then picked and placed one by one. |
+| `robot-bridge/ur5_kinematics.py` | UR5 joint maths (plain Python): which joint angles put the gripper where. Used for the ghost preview instead of RoboDK. |
 | `Assets/ThirdParty/HANDZONe/` | UR5, gripper and LAMA table models from HANDZONe (TU Delft), see `docs/HANDZONE_NOTES.md`. |
 | `Assets/Scripts/BrickSender.cs` | (Parjanya) After **A**, sends every moved brick (pick = tray pocket, place = wall spot) over Wi-Fi to the laptop for the robot. See `robot-bridge/`. |
 | `Assets/Scripts/BrickCsvExporter.cs` | (Matthias) Writes `scene_objects.csv`: table and brick positions/rotations, axes swapped for Rhino. |

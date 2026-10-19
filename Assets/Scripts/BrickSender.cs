@@ -28,6 +28,8 @@ using UnityEngine.InputSystem;
 //   x = right along the front edge, y = away from you, z = up (metres)
 //   yaw = degrees around z, counter-clockwise seen from above; 0 = long side pointing away from you
 //   standing = brick on its end (the robot can't build those yet; the bridge skips them)
+// Plus `robot`: where the ghost UR5 stands, so the RoboDK simulation can stand in the same place.
+// The bridge answers with the robot's movements on port 5006 (GhostPlayer.cs plays them on the ghost).
 public class BrickSender : MonoBehaviour
 {
     [Tooltip("Laptop IP. Windows Mobile Hotspot gives the laptop 192.168.137.1")]
@@ -147,7 +149,8 @@ public class BrickSender : MonoBehaviour
         // Build bottom-up; within a layer keep WallBuilder's order (Brick_1, Brick_2, ... along the curve)
         list = list.OrderBy(b => Mathf.Round(b.place.z * 100f)).ThenBy(b => b.id).ToList();
 
-        var msg = new LayoutMsg { type = "layout", seq = ++seq, frame = "table", units = "m_deg", bricks = list.ToArray() };
+        var msg = new LayoutMsg { type = "layout", seq = ++seq, frame = "table", units = "m_deg", bricks = list.ToArray(),
+                                  robot = GhostInfo() };
         byte[] data = Encoding.UTF8.GetBytes(JsonUtility.ToJson(msg));
         try
         {
@@ -165,7 +168,36 @@ public class BrickSender : MonoBehaviour
 
     void OnDestroy() => udp?.Close();
 
+    /// <summary>Where this brick waits in the tray right now (world space). Used by GhostPlayer.</summary>
+    public bool TryGetPickPose(string brickName, out Vector3 pos, out Quaternion rot)
+    {
+        foreach (var s in starts)
+            if (s.t.name == brickName)
+            {
+                pos = s.parent.TransformPoint(s.localPos);
+                rot = s.parent.rotation * s.localRot;
+                return true;
+            }
+        pos = Vector3.zero;
+        rot = Quaternion.identity;
+        return false;
+    }
+
+    // The ghost UR5's base in the table frame, so the RoboDK simulation can put its robot in the same place and the
+    // movements it sends back fit the ghost (see GhostPlayer.cs and the bridge's "ghost frame")
+    RobotMsg GhostInfo()
+    {
+        var ghost = FindAnyObjectByType<GhostRobot>();
+        if (ghost == null) return new RobotMsg { valid = false };
+        Vector3 b = ghost.baseInWorkspace; // Unity: x right, y up, z away
+        return new RobotMsg { valid = true, x = b.x, y = b.z, z = b.y, armYaw0 = ghost.ArmYaw(0f), armYaw90 = ghost.ArmYaw(90f),
+                              check = ghost.CheckPositions() };
+    }
+
     [Serializable] public class Pose3 { public float x, y, z, yaw; }
     [Serializable] public class BrickMsg { public int id; public string name; public bool standing; public Pose3 pick; public Pose3 place; }
-    [Serializable] public class LayoutMsg { public string type; public int seq; public string frame; public string units; public BrickMsg[] bricks; }
+    // armYaw0 / armYaw90: direction the arm points with base joint 0 / 90 deg and all other joints 0 (deg, CCW from x)
+    // check: the ghost's hand position for GhostRobot.CheckPoses (x, y, z per pose, m, relative to the base)
+    [Serializable] public class RobotMsg { public bool valid; public float x, y, z, armYaw0, armYaw90; public float[] check; }
+    [Serializable] public class LayoutMsg { public string type; public int seq; public string frame; public string units; public BrickMsg[] bricks; public RobotMsg robot; }
 }
