@@ -35,6 +35,9 @@ public class WallBuilder : MonoBehaviour
     [Tooltip("Pickup tray at the table's front-left corner; the wall can't be built on top of it")]
     public Transform tray;
     public Vector2 traySize = new Vector2(0.229f, 0.250f); // x (width) and z (depth), m
+    [Tooltip("Ghost UR5: walls it can't reach are refused, and its reach is drawn on the table")]
+    public GhostRobot robot;
+    public Material reachMaterial;
 
     [Header("Bricks")]
     public Vector3 brickSize = new Vector3(0.05f, 0.05f, 0.10f); // width, height, length (m)
@@ -58,7 +61,8 @@ public class WallBuilder : MonoBehaviour
     bool triggerWasDown, aWasDown, stickWasPushed;
 
     readonly List<Rigidbody> bricks = new List<Rigidbody>();
-    LineRenderer line, zone;
+    LineRenderer line, zone, reach;
+    string misfit; // why the last plan was refused
     TextMesh label;
 
     int BrickCount => bricks.Count;
@@ -70,6 +74,7 @@ public class WallBuilder : MonoBehaviour
 
         line = MakeLine("Wall Curve", lineMaterial, 0.006f, false);
         zone = MakeLine("Build Area", zoneMaterial != null ? zoneMaterial : lineMaterial, 0.003f, true);
+        reach = MakeLine("Robot Reach", reachMaterial != null ? reachMaterial : lineMaterial, 0.004f, false);
         label = MakeLabel();
 
         if (calibration != null) calibration.Placed += Restart;
@@ -216,7 +221,7 @@ public class WallBuilder : MonoBehaviour
         var plan = PlanRectangle(layers, out var wallCurve);
         if (plan == null)
         {
-            Say($"A {BrickCount / layers}-brick wall along that curve doesn't fit on the table.\n" +
+            Say($"A {BrickCount / layers}-brick wall along that curve {misfit}.\n" +
                 "Draw again (TRIGGER) or choose more layers (shorter wall)");
             return;
         }
@@ -317,8 +322,12 @@ public class WallBuilder : MonoBehaviour
                 Vector3 centre = start + d * (L / 2f) + side * (W / 2f);
                 var corners = new[] { start, start + d * L, start + d * L + side * W, start + side * W };
                 foreach (var c in corners)
+                {
                     if (c.x < minX - tol || c.x > maxX + tol || c.z < minZ - tol || c.z > maxZ + tol)
-                        return null;
+                    { misfit = "doesn't fit on the table"; return null; }
+                    if (OnTray(c)) { misfit = "would land on the pickup tray"; return null; }
+                    if (robot != null && !robot.InReach(c)) { misfit = "is out of the robot's reach (orange line)"; return null; }
+                }
                 centre.y = brickSize.y * (layer + 0.5f) + 0.0005f;
                 var rotation = Quaternion.LookRotation(d, Vector3.up); // brick length (local z) along d
                 plan.Add(new BrickPose
@@ -407,19 +416,54 @@ public class WallBuilder : MonoBehaviour
 
     // ---------- build area, curve and label ----------
 
-    // The table minus a margin, and right of the pickup tray (which sits at the front-left corner)
+    // The table minus a margin. Without a ghost robot the tray (front-left corner) is cut off on the left as before;
+    // with one, the tray sits next to the robot and OnTray / the reach check refuse walls there instead.
     void GetBuildArea(out float minX, out float maxX, out float minZ, out float maxZ)
     {
         float halfWidth = table.localScale.x / 2f;
         minX = -halfWidth + edgeMargin;
-        if (tray != null) minX = Mathf.Max(minX, tray.localPosition.x + traySize.x + edgeMargin);
+        if (tray != null && robot == null) minX = Mathf.Max(minX, tray.localPosition.x + traySize.x + edgeMargin);
         maxX = halfWidth - edgeMargin;
         minZ = edgeMargin;
         maxZ = table.localScale.z - edgeMargin;
     }
 
+    // Is this table point on (or too close to) the pickup tray?
+    bool OnTray(Vector3 p)
+    {
+        if (tray == null) return false;
+        Vector3 t = tray.localPosition;
+        return p.x > t.x - edgeMargin && p.x < t.x + traySize.x + edgeMargin &&
+               p.z > t.z - edgeMargin && p.z < t.z + traySize.y + edgeMargin;
+    }
+
+    // Orange arc on the table: how far the robot can reach (the part of that circle that lies on the table)
+    void DrawReach()
+    {
+        reach.positionCount = 0;
+        if (robot == null) return;
+        GetBuildArea(out float minX, out float maxX, out float minZ, out float maxZ);
+        bool Inside(Vector3 p) => p.x >= minX && p.x <= maxX && p.z >= minZ && p.z <= maxZ;
+        Vector3 Arc(float deg) => robot.baseInWorkspace +
+            new Vector3(Mathf.Cos(deg * Mathf.Deg2Rad), 0f, Mathf.Sin(deg * Mathf.Deg2Rad)) * robot.maxReach;
+
+        // Start at a point of the circle that is off the table, so the part on the table comes out in one piece
+        float start = 0f;
+        for (float a = 0f; a < 360f; a += 2f) if (!Inside(Arc(a))) { start = a; break; }
+        var pts = new List<Vector3>();
+        for (float a = start; a <= start + 360f; a += 2f)
+        {
+            var p = Arc(a);
+            if (Inside(p)) pts.Add(workspace.TransformPoint(new Vector3(p.x, 0.002f, p.z)));
+            else if (pts.Count > 0) break;
+        }
+        reach.positionCount = pts.Count;
+        reach.SetPositions(pts.ToArray());
+    }
+
     void DrawBuildArea()
     {
+        DrawReach();
         GetBuildArea(out float minX, out float maxX, out float minZ, out float maxZ);
         float y = 0.002f;
         zone.positionCount = 4;

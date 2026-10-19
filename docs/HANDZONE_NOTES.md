@@ -18,6 +18,7 @@ We don't run HANDZONe itself. We reuse **only its 3D models**: the **UR5 with it
 - The 6 joints are nested parts of the UR5 model, base to wrist: `1_Body_reduced` → `2_BodyEnd_reduced` → `3_BodyEnd_reduced` → `4_Body_reduced` → `5_Body_reduced` → `6_MetalBodyEnd_reduced`.
 - HANDZONe turns joint *i* like this: `localRotation = Euler(startRotation + direction × angle)`, where the angle is the real robot's joint angle (UR5 joint values, radians → degrees) and `direction` is ±1 around the part's local z axis: `[-1, -1, +1, -1, -1, +1]`.
 - So the model can be posed with exactly the same 6 joint angles the real UR5 (or RoboDK) uses. That's what the ghost robot preview needs.
+- **Correction we found (19 Oct):** with the starting rotations from `RobotArm.prefab`, "all joints 0" shows the arm **upright** (the "candle"), while a real UR5 at all zeros lies **flat**. Upright on the real robot is (0, −90, 0, −90, 0, 0), so our `GhostRobot` adds **+90° to the shoulder and wrist 1** (`zeroOffset`). Checked with renders: all zeros = flat, candle = upright, home (0, −90, −90, −90, 90, 0) = tool pointing down. (HANDZONe's own scene may start from different rotations; we only use the models.)
 - HANDZONe gets those angles from its server (live from the robot or from URSim), and for "grab the robot" interactions asks the server for inverse kinematics. We'll get them from RoboDK through the robot bridge instead (route B, see DEVLOG).
 
 ## How it was brought over (2026-10-19)

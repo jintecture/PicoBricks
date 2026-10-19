@@ -325,6 +325,33 @@ Two iterations are planned: **rectangle** first (every layer the same length), t
 - Still placeholder `calib.json`: the real positions need the corner measurement at the robot (menu 5).
 - **RoboDK showed an older wall than the headset** ("the curve is noticeably wrong"). Checked step by step: headset wall plan = what was sent = where RoboDK put each brick (to the mm). So the data was right; RoboDK was just behind. Causes: (1) in simulation the bridge waited for "y" before every wall, so a new wall from the headset sat unbuilt; (2) duplicates were filtered by number only, and the headset restarts its numbering when the app restarts. **Fix:** only true duplicates are skipped (same number within 2 s), and walls queued during a build are skipped in favour of the newest (tested with fake headset messages). Building straight away without asking was tried and **reverted at Jin's request**: the "Run? [Y/n]" question gives the user time to take the headset off and watch the screen. So: answer the question in the black window for each new wall.
 
+## 2026-10-19: Ghost UR5 + LAMA table in the AR scene (step 1 of "see the robot build it first")
+
+The lecturer's requirement: the user **sees the UR5 build the wall in the headset and confirms before the real robot moves**. Chosen route (**route B**): RoboDK on the laptop plans the robot's joint movements (via Parjanya's bridge), sends them back to the headset, and a see-through "ghost" UR5 acts out the pick and place there. The user confirms in the headset; the laptop's "Run? [Y/n]" stays as a second check. This entry is step 1: the ghost robot standing in the right place.
+
+**Set-up (confirmed by Jin):** the real robot is on the **LAMA table** (the one in HANDZONe's model). The user stands at the **long side**, with the robot on the **right**.
+
+What **PicoBricks → Setup Brick Scene** now does:
+- Places HANDZONe's **LAMA table + UR5 + gripper** (`Assets/ThirdParty/HANDZONe`, see `HANDZONE_NOTES.md`) in the Workspace. It measures the table model itself: long side = front edge (where the user stands), robot end = right, front-edge middle on the table top = the Workspace origin (same frame as calibration, the wall plan and the bridge). Measured: **1.43 × 0.61 m, 0.91 m high; UR5 base 0.47 m right of the middle, halfway back** (0.31 m from the front edge).
+- The **robot is pale blue and see-through** (`GhostRobot.mat`). The **LAMA table model only shows in VR mode**: in passthrough you see the real table. The old grey box table stays invisible, only for its collider and size. It now gets the LAMA size by default.
+- The **pickup tray moved next to the robot**: along the front edge, its centre 40 cm left of the robot base (all pockets within ~60 cm of the base). `TableCalibration.trayOffset` keeps it there after calibrating. Pick positions sent to the robot follow automatically (`BrickSender` reads the tray's position).
+- New script **`GhostRobot.cs`**: poses the arm with the same 6 joint angles the real UR5 and RoboDK use (`SetJointsDegrees` / `SetJointsRadians`), and answers "can the robot reach this point?" (`InReach`: between 18 and 70 cm from the base, measured on the table).
+- **`WallBuilder`** now refuses walls that are **out of the robot's reach** or **land on the tray** (message says which), and draws the robot's reach as an **orange arc** on the table. The build area is the whole table minus 3 cm (it used to be "right of the tray", but the tray isn't at the left corner any more).
+
+**Joint angle check (found while testing):** HANDZONe's model at "all joints 0" stands upright (the "candle"), but the real UR5 at all zeros lies flat, stretched out. So the shoulder and wrist 1 are shifted by 90°: `GhostRobot.zeroOffset = (0, 90, 0, 90, 0, 0)`. Checked with renders of three known poses (below). Still to check against RoboDK: same joint numbers → gripper at the same spot (directions of base and wrists).
+
+| Home pose (tool down) | Top view (tray left of the robot) | All joints 0 (arm flat) |
+| --- | --- | --- |
+| ![](images/ghost-robot-home.png) | ![](images/ghost-robot-top.png) | ![](images/ghost-robot-zero.png) |
+
+(Rendered by Unity without the headset, in VR mode: the controller in the middle is the rig's controller model at its default spot.)
+
+**Batch set-up:** `BrickSceneSetup.SetupFromCommandLine` runs the set-up without opening the Unity window (`Unity.exe -batchmode -quit -projectPath <PicoBricks> -executeMethod BrickSceneSetup.SetupFromCommandLine`).
+
+**Note:** the measured table is the HANDZONe model's. Calibrating on the real table still resizes the invisible table box, but the ghost stays at the model's size, centred on the front edge. If the real LAMA table differs, we'll see it as an offset and can fix it then.
+
+**Next:** build onto the headset and check the ghost stands on the real robot. Then the bridge sends RoboDK's joint movements back, the ghost animates pick and place with ghost bricks, and the user confirms in the headset.
+
 ---
 
 ## Still to do
@@ -334,11 +361,15 @@ Two iterations are planned: **rectangle** first (every layer the same length), t
 - [ ] **New headset:** developer mode + USB debugging, check firmware version, build PicoBricks onto it
 - [x] **v2 rectangle:** curve walls, tested in the headset, merged into main (18 Oct)
 - [ ] **Robot in AR:** ghost UR5 in the headset showing pick + place before the real robot moves (lecturer, HANDZONe)
+  - [x] Step 1: ghost UR5 + LAMA table placed, tray next to the robot, reach check + arc (19 Oct)
+  - [ ] Check in the headset that the ghost stands on the real robot
+  - [ ] Check joint directions against RoboDK (same angles → same gripper spot)
+  - [ ] Bridge sends RoboDK joint movements back; ghost animates pick/place; confirm in the headset
 - [ ] Team decision: robot route (Parjanya's RoboDK bridge vs Matthias's Grasshopper) + one brick-list format
 - [ ] Test `BrickSender` + `robot-bridge` (RoboDK simulation, no robot needed)
 - [ ] **v2 triangle:** 3 + 2 + 1 pattern
 - [ ] Send `wall_plan.json` to the robot (agree format + transport with Matthias)
-- [ ] Real LAMA table + UR5 model from HANDZONe (ghost robot)
+- [x] Real LAMA table + UR5 model from HANDZONe (ghost robot, 19 Oct)
 - [ ] 3-point calibration with robot coordinates (needs Matthias's measurements)
 - [ ] Controller button to switch aligned ↔ non-aligned stacking (`BrickSnap.AlignToBelow`)
 - [ ] Ask Matthias: can the gripper place a brick **standing** (picked lying from the tray, turned 90°)?

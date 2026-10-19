@@ -32,6 +32,23 @@ public static class BrickSceneSetup
     static readonly Color BrickColour = new Color(0.55f, 0.36f, 0.2f, 0.7f);
     const float OutlineThickness = 0.002f; // 2 mm black edges
 
+    // Ghost robot (HANDZONe's UR5 + LAMA table, see docs/HANDZONE_NOTES.md)
+    const string GhostPrefabPath = "Assets/ThirdParty/HANDZONe/Robot/LAMA_UR5.prefab";
+    const string GhostJointsPath = "Assets/ThirdParty/HANDZONe/Robot/LAMA_UR5_joints.json";
+    static readonly Color GhostColour = new Color(0.8f, 0.9f, 1f, 0.35f);  // pale blue, see-through
+    // Pickup tray: along the front edge, its centre this far left of the robot base (within reach)
+    const float TrayDistanceFromRobot = 0.40f;
+    const float TrayFromFrontEdge = 0.03f;
+    static readonly Vector2 TraySize = new Vector2(0.229f, 0.250f);
+
+    // Same as the menu, without opening the Unity window:
+    // Unity.exe -batchmode -quit -projectPath <PicoBricks> -executeMethod BrickSceneSetup.SetupFromCommandLine
+    public static void SetupFromCommandLine()
+    {
+        EditorSceneManager.OpenScene("Assets/Scenes/SampleScene.unity");
+        Setup();
+    }
+
     [MenuItem("PicoBricks/Setup Brick Scene")]
     static void Setup()
     {
@@ -61,7 +78,7 @@ public static class BrickSceneSetup
         var floorMat = GetOrCreateMaterial("Assets/Materials/Floor.mat", new Color(0.55f, 0.55f, 0.55f));
 
         // Remove the test cube and anything from a previous run
-        foreach (var name in new[] { "Cube", "Floor", "Table", "Bricks", "Workspace" })
+        foreach (var name in new[] { "Cube", "Floor", "Table", "Bricks", "Workspace", "GhostRobot" })
         {
             var old = GameObject.Find(name);
             if (old != null) Undo.DestroyObjectImmediate(old);
@@ -89,11 +106,28 @@ public static class BrickSceneSetup
         table.transform.localScale = new Vector3(1.0f, TableHeight, 0.6f);
         table.GetComponent<Renderer>().sharedMaterial = grey;
 
-        // The printed pickup tray sits at the table's front-left corner (TableCalibration moves it there after
-        // calibration). The bricks start in its pockets, like the real ones the robot picks up.
+        // Ghost LAMA table + UR5 from HANDZONe, lined up with the table frame (front edge = the long side the user
+        // stands at, robot at the right-hand end). Its real size replaces the default grey table's size.
+        var ghostMat = GetOrCreateTransparentMaterial("Assets/Materials/GhostRobot.mat", GhostColour);
+        var ghost = PlaceGhostRobot(workspace.transform, ghostMat);
+        Vector2 trayOffset = Vector2.zero;
+        if (ghost != null)
+        {
+            table.transform.localScale = new Vector3(ghost.Width, ghost.Height, ghost.Depth);
+            table.transform.localPosition = new Vector3(0f, -ghost.Height / 2f, ghost.Depth / 2f);
+            floor.transform.localPosition = new Vector3(0f, -ghost.Height, 0f);
+            // The ghost LAMA table is the visible table now; the grey box only stays for its collider and size
+            table.GetComponent<Renderer>().enabled = false;
+            // Tray within the robot's reach: along the front edge, left of the robot
+            float trayCentreX = ghost.Component.baseInWorkspace.x - TrayDistanceFromRobot;
+            trayOffset = new Vector2(trayCentreX - TraySize.x / 2f + ghost.Width / 2f, TrayFromFrontEdge);
+        }
+
+        // The printed pickup tray (TableCalibration keeps it at trayOffset from the table's front-left corner).
+        // The bricks start in its pockets, like the real ones the robot picks up.
         var tray = new GameObject("PickupTray");
         tray.transform.SetParent(workspace.transform, false);
-        tray.transform.localPosition = new Vector3(-table.transform.localScale.x / 2f, 0f, 0f);
+        tray.transform.localPosition = new Vector3(-table.transform.localScale.x / 2f + trayOffset.x, 0f, trayOffset.y);
         if (trayMesh != null)
         {
             tray.AddComponent<MeshFilter>().sharedMesh = trayMesh;
@@ -162,6 +196,7 @@ public static class BrickSceneSetup
             calibration.table = table.transform;
             calibration.floor = floor.transform;
             calibration.tray = tray.transform;
+            calibration.trayOffset = trayOffset;
             calibration.rightController = FindChild(rig.transform, "Right Controller");
             calibration.bricks = controls;
             calibration.passthrough = passthrough;
@@ -182,6 +217,12 @@ public static class BrickSceneSetup
             if (trayMesh != null) wall.traySize = new Vector2(trayMesh.bounds.size.x, trayMesh.bounds.size.z);
             wall.lineMaterial = GetOrCreateMaterial("Assets/Materials/WallLine.mat", new Color(0.1f, 0.85f, 1f), unlit: true);
             wall.zoneMaterial = GetOrCreateMaterial("Assets/Materials/BuildArea.mat", new Color(1f, 1f, 1f), unlit: true);
+            if (ghost != null)
+            {
+                ghost.Component.passthrough = passthrough;
+                wall.robot = ghost.Component;
+                wall.reachMaterial = GetOrCreateMaterial("Assets/Materials/RobotReach.mat", new Color(1f, 0.6f, 0.1f), unlit: true);
+            }
         }
 
         var scene = EditorSceneManager.GetActiveScene();
@@ -340,6 +381,101 @@ public static class BrickSceneSetup
         }
         AssetDatabase.CreateAsset(mesh, path);
         return mesh;
+    }
+
+    // ---------- ghost robot ----------
+
+    [Serializable] class JointInfo { public string path; public float[] dir; public float[] initialEuler; }
+    [Serializable] class JointFile { public JointInfo[] joints; }
+
+    class GhostPlacement
+    {
+        public GhostRobot Component;
+        public float Width, Depth, Height; // the LAMA table: along the front edge, front to back, floor to top (m)
+    }
+
+    // Puts HANDZONe's LAMA table + UR5 in the Workspace so that the table's long front edge lies on the Workspace's
+    // front edge (origin = its middle, on the table top) with the robot at the right-hand end, as seen by the user.
+    // The model's own measurements are used, not hand-typed numbers.
+    static GhostPlacement PlaceGhostRobot(Transform workspace, Material ghostMat)
+    {
+        var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(GhostPrefabPath);
+        var jointsAsset = AssetDatabase.LoadAssetAtPath<TextAsset>(GhostJointsPath);
+        if (prefab == null || jointsAsset == null)
+        {
+            Debug.LogWarning("PicoBricks: HANDZONe robot not found in Assets/ThirdParty/HANDZONe, no ghost robot");
+            return null;
+        }
+
+        var go = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
+        PrefabUtility.UnpackPrefabInstance(go, PrefabUnpackMode.Completely, InteractionMode.AutomatedAction);
+        go.name = "GhostRobot";
+        Undo.RegisterCreatedObjectUndo(go, "Ghost robot");
+        // Nothing may bump into the ghost: the bricks only collide with the (invisible) table box
+        foreach (var c in go.GetComponentsInChildren<Collider>(true)) UnityEngine.Object.DestroyImmediate(c);
+
+        var tableModel = FindChild(go.transform, "LAMA_Table");
+        var ur5 = FindChild(go.transform, "UR5");
+        if (tableModel == null || ur5 == null)
+        {
+            Debug.LogWarning("PicoBricks: LAMA_Table or UR5 missing in the HANDZONe prefab, no ghost robot");
+            UnityEngine.Object.DestroyImmediate(go);
+            return null;
+        }
+
+        // Measure the table model (world box around its meshes, while the prefab still stands where it was made)
+        var tableRenderers = tableModel.GetComponentsInChildren<Renderer>(true);
+        var box = tableRenderers[0].bounds;
+        foreach (var r in tableRenderers) box.Encapsulate(r.bounds);
+        Vector3 basePos = ur5.position;
+
+        // Long horizontal side = the front edge, pointing towards the robot = "right" for the user
+        bool longIsX = box.size.x >= box.size.z;
+        Vector3 right = longIsX ? Vector3.right : Vector3.forward;
+        if (Vector3.Dot(basePos - box.center, right) < 0f) right = -right;
+        Vector3 forward = Vector3.Cross(right, Vector3.up); // away from the user, same rule as TableCalibration
+        float width = longIsX ? box.size.x : box.size.z;
+        float depth = longIsX ? box.size.z : box.size.x;
+        Vector3 frontMiddle = box.center - forward * (depth / 2f);
+        frontMiddle.y = box.max.y;
+
+        // Express the whole prefab relative to that front edge, then hang it under the Workspace
+        var frameRot = Quaternion.LookRotation(forward, Vector3.up);
+        var inv = Quaternion.Inverse(frameRot);
+        Vector3 localPos = inv * (go.transform.position - frontMiddle);
+        Quaternion localRot = inv * go.transform.rotation;
+        Vector3 baseLocal = inv * (basePos - frontMiddle);
+        go.transform.SetParent(workspace, false);
+        go.transform.localPosition = localPos;
+        go.transform.localRotation = localRot;
+
+        // See-through pale robot (the table keeps its look and only shows in VR mode)
+        foreach (var r in ur5.GetComponentsInChildren<Renderer>(true))
+        {
+            r.sharedMaterials = Enumerable.Repeat(ghostMat, r.sharedMaterials.Length).ToArray();
+            r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        }
+
+        var ghost = go.AddComponent<GhostRobot>();
+        ghost.baseInWorkspace = baseLocal;
+        ghost.tableRenderers = tableRenderers;
+        var file = JsonUtility.FromJson<JointFile>(jointsAsset.text);
+        int n = file.joints.Length;
+        ghost.joints = new Transform[n];
+        ghost.directions = new Vector3[n];
+        ghost.restEuler = new Vector3[n];
+        for (int i = 0; i < n; i++)
+        {
+            var j = file.joints[i];
+            ghost.joints[i] = go.transform.Find(j.path);
+            ghost.directions[i] = new Vector3(j.dir[0], j.dir[1], j.dir[2]);
+            ghost.restEuler[i] = new Vector3(j.initialEuler[0], j.initialEuler[1], j.initialEuler[2]);
+            if (ghost.joints[i] == null) Debug.LogWarning($"PicoBricks: ghost robot joint not found: {j.path}");
+        }
+
+        Debug.Log($"PicoBricks: ghost LAMA table {width:F3} x {depth:F3} m, {box.size.y:F3} m high; " +
+                  $"UR5 base at {baseLocal} in the table frame");
+        return new GhostPlacement { Component = ghost, Width = width, Depth = depth, Height = box.size.y };
     }
 
     static Transform FindChild(Transform parent, string name)

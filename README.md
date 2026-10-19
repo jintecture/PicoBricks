@@ -24,7 +24,8 @@ Part of the Creative Robotics group project (TU Delft, ARIT1507, Oct 2026).
 - **Choose the number of layers (1–3).** With 6 bricks: 1 layer = 6 bricks long (60 cm), 2 layers = 3 × 2 (30 cm), 3 layers = 2 × 3 (20 cm).
 - Press **OK (A)** and the bricks build the wall: lying flat, along the curve, stacked straight up. If it doesn't fit on the table, you're asked to draw again.
 - Every built wall is saved as a **brick list for the robot** (`wall_plan.json` on the headset: build order, layer, position and angle of each brick in table coordinates).
-- The 6 bricks start in the **pickup tray** at the table's front-left corner: the same tray we 3D-print ([`hardware/pickup-tray`](hardware/pickup-tray)). They can be grabbed; building a wall takes them from the tray.
+- A see-through **ghost UR5** stands on the table where the real robot is (LAMA table, user at the long side, robot on the right; models from HANDZONe). Walls the robot can't reach are refused; its reach is the **orange arc** on the table. Next: the ghost acts out the build before the real robot moves.
+- The 6 bricks start in the **pickup tray** next to the robot (along the front edge, within its reach): the same tray we 3D-print ([`hardware/pickup-tray`](hardware/pickup-tray)). They can be grabbed; building a wall takes them from the tray.
 - Bricks are **brown, 70 % see-through, with black edges**, so each brick is readable in a built wall.
 
 ## Controls (in the headset)
@@ -53,6 +54,8 @@ The **white ball** in front of the right controller is the measuring tip for cal
 | `Assets/Scripts/BrickControls.cs` | X and Y buttons; puts bricks back if they fall off the world. |
 | `Assets/Scripts/TableCalibration.cs` | 4-point table calibration (B + trigger). |
 | `Assets/Scripts/WallBuilder.cs` | **v2:** draw the curve (trigger), choose layers (thumbstick), build the wall (A), save `wall_plan.json` for the robot. Wall patterns are planned here (rectangle now, triangle next). |
+| `Assets/Scripts/GhostRobot.cs` | The see-through UR5: poses it with real UR5 joint angles, and checks whether a point is within the robot's reach. Placed by the scene setup. |
+| `Assets/ThirdParty/HANDZONe/` | UR5, gripper and LAMA table models from HANDZONe (TU Delft), see `docs/HANDZONE_NOTES.md`. |
 | `Assets/Scripts/BrickSender.cs` | (Parjanya) After **A**, sends every moved brick (pick = tray pocket, place = wall spot) over Wi-Fi to the laptop for the robot. See `robot-bridge/`. |
 | `Assets/Scripts/BrickCsvExporter.cs` | (Matthias) Writes `scene_objects.csv`: table and brick positions/rotations, axes swapped for Rhino. |
 | `robot-bridge/` | (Parjanya) Laptop side of the robot link: `picobricks_bridge.py` + `PICOBRICKS.bat` menu, RoboDK simulation and UR5. Own README. |
