@@ -10,7 +10,7 @@
     <ProductVersion>10.0.20506</ProductVersion>
     <SchemaVersion>2.0</SchemaVersion>
     <RootNamespace></RootNamespace>
-    <ProjectGuid>{E121C83E-23DE-B362-5A7A-5AA353ECF65D}</ProjectGuid>
+    <ProjectGuid>{01181552-347A-1D1B-56FE-F1261FB98A90}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <AssemblyName>Assembly-CSharp</AssemblyName>
@@ -61,10 +61,12 @@
     <Analyzer Include="C:\Program Files\Unity\Hub\Editor\6000.3.8f1\Editor\Data\Tools\BuildPipeline\Unity.SourceGenerators\Unity.UIToolkit.SourceGenerator.dll" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Assets\Scripts\BrickSnap.cs" />
     <Compile Include="Assets\Scripts\BrickControls.cs" />
     <Compile Include="Assets\Scripts\BrickCsvExporter.cs" />
     <Compile Include="Assets\Scripts\TableCalibration.cs" />
     <Compile Include="Assets\TutorialInfo\Scripts\Readme.cs" />
+    <Compile Include="Assets\Scripts\BrickTcpSender.cs" />
     <Compile Include="Assets\Scripts\Passthrough.cs" />
   </ItemGroup>
   <ItemGroup>
@@ -1432,11 +1434,11 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="Unity.XR.Interaction.Toolkit.Samples.StarterAssets.csproj">
-      <Project>{56F4AF8E-C8E9-A44A-8587-70441008067B}</Project>
+      <Project>{8A341BF0-98E3-1B9B-1981-47FC68454B17}</Project>
       <Name>Unity.XR.Interaction.Toolkit.Samples.StarterAssets</Name>
     </ProjectReference>
     <ProjectReference Include="Unity.XR.Interaction.Toolkit.Samples.StarterAssets.Editor.csproj">
-      <Project>{093B7FBD-DA1A-4714-2E94-99427995C53C}</Project>
+      <Project>{756DF8C8-8B2B-F96A-5BEF-70F4B2688493}</Project>
       <Name>Unity.XR.Interaction.Toolkit.Samples.StarterAssets.Editor</Name>
     </ProjectReference>
   </ItemGroup>
