@@ -403,9 +403,9 @@ Parjanya's bridge stays (Wi-Fi link, table frame, calibration, URScript to the r
   - [ ] Check in the headset that the ghost stands on the real robot
   - [x] Joint directions: checked automatically by the bridge against the UR5 maths (19 Oct)
   - [x] Bridge sends the joint movements back; ghost builds the wall in the headset (19 Oct, own UR5 maths instead of RoboDK)
-  - [ ] Confirm in the headset (then the laptop's Run? [Y/n] stays as second check)
+  - [x] Confirm in the headset: bricks preview the wall, A sends it (21 Oct). The laptop's Run? [Y/n] stays as second check
   - [ ] Real robot: send the same joint angles (movej with joints) so the robot does exactly what the ghost showed
-  - [ ] Measure the robot's real reach with the gripper; make the drawing area follow it
+  - [x] Drawing area follows the reach worked out from the UR5 maths (20–75 cm, 21 Oct). Still to check with Matthias: the real gripper length
 - [ ] Team decision: robot route (Parjanya's RoboDK bridge vs Matthias's Grasshopper) + one brick-list format
 - [ ] Test `BrickSender` + `robot-bridge` (RoboDK simulation, no robot needed)
 - [ ] **v2 triangle:** 3 + 2 + 1 pattern
