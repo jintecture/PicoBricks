@@ -370,6 +370,8 @@ What **PicoBricks → Setup Brick Scene** now does:
 
 **Lining up the ghost and the maths automatically:** the headset sends which way the ghost's arm points at "all joints 0" and with the base turned 90°. The bridge compares that with the maths and turns its robot to match. It also compares the ghost's hand position for 3 test poses with the maths and prints either "ghost robot matches the UR5 maths" or a warning that a joint turns the wrong way.
 
+**Bug found on 20 Oct (Jin):** "the robot can't reach…" for every wall, and in the headset the tray seemed to sit on the robot base. It really did: the nearest pocket was 9 cm from the base. Cause: the ghost robot is placed from the **middle of the front edge**, but the tray was placed from the **front-left corner**. When the calibration measured a narrower table than the LAMA model (1.43 m), the tray slid sideways into the robot. **Fix:** with the ghost robot, the tray is measured from the same point as the robot (`TableCalibration.trayFromOrigin`). The bridge's message now names the brick and the reason ("Brick_3 in the tray, 9 cm from the robot: too close to its base"). Replaying Jin's wall with the tray in the right place: all 207 robot poses OK.
+
 Parjanya's bridge stays (Wi-Fi link, table frame, calibration, URScript to the real robot). Only the "ask RoboDK" step is replaced for the preview. **Parjanya Singh and Matthias Nahum should know**, because it affects the robot-route decision.
 
 ---
