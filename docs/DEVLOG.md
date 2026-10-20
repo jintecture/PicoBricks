@@ -379,6 +379,10 @@ What **PicoBricks → Setup Brick Scene** now does:
 2. **The wall slides into place instead of being refused:** if it pokes out, it is moved (same shape and direction) to the nearest spot where it fits, up to 40 cm, and the message says how far ("moved 12 cm to fit the robot's area"). Only refused if it fits nowhere.
 3. **The wall grows around the middle of the drawn curve** instead of from its start point, so it lands where it was drawn.
 
+**Headset test 21 Oct (Jin): 1-layer walls still refused, and bricks overlapping on curves.**
+- *Still refused:* the old 44 × 27 cm rectangle was still stored in the scene. The setup had stopped writing it, but never cleared it, and Unity keeps the old value of a reused component. Fixed: the setup now clears it explicitly. (The bigger area from 20 Oct had never actually been active.)
+- *Overlapping bricks* on S-curves and sharp bends (screenshot: a 6 × 1 S-curve with bricks cutting through each other). The hinge corner was chosen by a simple rule, and nothing checked the result. Now both hinge corners are tried for every brick, each candidate is checked against all bricks laid so far (separating-axis test; touching is allowed), and the one that lands closest to the curve wins. If none fits, the bend is too sharp for 10 cm bricks and is straightened step by step. Tested outside Unity (Python copy of the logic) on 12 curve types × 1–3 layers × both wall sides: **0 overlaps**, neighbouring bricks always touch.
+
 Parjanya's bridge stays (Wi-Fi link, table frame, calibration, URScript to the real robot). Only the "ask RoboDK" step is replaced for the preview. **Parjanya Singh and Matthias Nahum should know**, because it affects the robot-route decision.
 
 ---
