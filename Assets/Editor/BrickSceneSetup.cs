@@ -236,6 +236,10 @@ public static class BrickSceneSetup
             if (trayMesh != null) wall.traySize = new Vector2(trayMesh.bounds.size.x, trayMesh.bounds.size.z);
             wall.lineMaterial = GetOrCreateMaterial("Assets/Materials/WallLine.mat", new Color(0.1f, 0.85f, 1f), unlit: true);
             wall.zoneMaterial = GetOrCreateMaterial("Assets/Materials/BuildArea.mat", new Color(1f, 1f, 1f), unlit: true);
+            // No fixed drawing rectangle: the whole table, minus tray and unreachable parts (WallBuilder.Allowed).
+            // Set explicitly: the component is reused between runs, so an old value would otherwise stay in the scene
+            // (that kept the old 44 x 27 cm rectangle alive after 20 Oct)
+            wall.drawArea = default;
             if (ghost != null)
             {
                 ghost.Component.passthrough = passthrough;

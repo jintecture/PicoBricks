@@ -286,34 +286,63 @@ public class WallBuilder : MonoBehaviour
         //    bend (never overlap), and aimed so its front end lands back ON the curve one brick length later.
         //    Aiming from where the brick really starts (not from fixed points) means a shift caused by a
         //    back-corner hinge is corrected by the next brick instead of carried along the whole wall.
+        //    Both hinges are tried and every candidate is checked against all bricks laid so far, so bricks can
+        //    never overlap, also on S-curves and sharp bends (overlaps seen in the headset, 21 Oct). The candidate
+        //    whose front end lands closest to the curve wins. If no candidate fits, the bend is too sharp for real
+        //    bricks: it is straightened step by step until one fits (a straight continuation always does).
+        Vector3[] Feet(Vector3 s, Vector3 d) => new[] { s, s + d * L, s + d * L + Side(d) * W, s + Side(d) * W };
         var chain = new List<(Vector3 frontStart, Vector3 dir)> { (wallCurve[0], firstDir) };
+        var laid = new List<Vector3[]> { Feet(wallCurve[0], firstDir) };
         for (int i = 1; i < perLayer; i++)
         {
             var (prevStart, prevDir) = chain[i - 1];
             Vector3 prevEnd = prevStart + prevDir * L;
-            Vector3 prevSide = Side(prevDir);
+            Vector3 backCorner = prevEnd + Side(prevDir) * W;
 
-            int tryProgress = progress;
-            Vector3 d = StepAlong(wallCurve, prevEnd, L, ref tryProgress, out var hit) ? (hit - prevEnd).normalized : prevDir;
-            Vector3 start = prevEnd;
+            int aimProgress = progress;
+            Vector3 aim = StepAlong(wallCurve, prevEnd, L, ref aimProgress, out var hit) ? (hit - prevEnd).normalized : prevDir;
 
-            if (Vector3.Dot(d, prevSide) > 0f)
+            bool found = false;
+            Vector3 bestStart = prevEnd, bestDir = prevDir;
+            int bestProgress = progress;
+            float bestMiss = float.MaxValue;
+            for (int step = 0; step <= 10 && !found; step++)
             {
-                // bends towards the wall body: hinge on the BACK corner; the brick then starts slightly off the
-                // curve, so re-aim from that real start (a few rounds, start and direction depend on each other)
-                Vector3 backCorner = prevEnd + prevSide * W;
-                for (int k = 0; k < 5; k++)
+                Vector3 d0 = Vector3.Slerp(aim, prevDir, step / 10f).normalized;
+                for (int hinge = 0; hinge < 2; hinge++)
                 {
-                    start = backCorner - Side(d) * W;
-                    tryProgress = progress;
-                    if (!StepAlong(wallCurve, start, L, ref tryProgress, out hit)) break;
-                    d = (hit - start).normalized;
+                    Vector3 d = d0, start = prevEnd;
+                    int tryProgress = step == 0 ? aimProgress : progress;
+                    if (hinge == 1)
+                    {
+                        // back corner: the brick then starts slightly off the curve, so re-aim from that real start
+                        // (a few rounds, start and direction depend on each other); only while following the curve
+                        for (int k = 0; k < 5; k++)
+                        {
+                            start = backCorner - Side(d) * W;
+                            if (step > 0) break;
+                            tryProgress = progress;
+                            if (!StepAlong(wallCurve, start, L, ref tryProgress, out var h)) break;
+                            d = (h - start).normalized;
+                        }
+                    }
+                    var feet = Feet(start, d);
+                    if (OverlapsAny(feet, laid)) continue;
+                    float miss = DistanceToCurve(wallCurve, start + d * L);
+                    if (miss < bestMiss)
+                    {
+                        found = true;
+                        bestMiss = miss;
+                        bestStart = start;
+                        bestDir = d;
+                        bestProgress = Mathf.Max(tryProgress, progress);
+                    }
                 }
             }
-            // else: bends away from the body (or straight): hinge on the FRONT corner, which is on the curve
 
-            progress = tryProgress;
-            chain.Add((start, d));
+            progress = bestProgress;
+            chain.Add((bestStart, bestDir));
+            laid.Add(Feet(bestStart, bestDir));
         }
 
         var plan = new List<BrickPose>();
@@ -333,6 +362,55 @@ public class WallBuilder : MonoBehaviour
                 });
             }
         return plan;
+    }
+
+    // Does this brick footprint (4 corners on the table) overlap any of the laid ones? Touching is fine: both are
+    // shrunk by 1 mm first, so bricks that share a corner or an edge don't count as overlapping.
+    static bool OverlapsAny(Vector3[] a, List<Vector3[]> laid)
+    {
+        var sa = Shrink(a, 0.001f);
+        foreach (var b in laid)
+            if (Overlap(sa, Shrink(b, 0.001f))) return true;
+        return false;
+    }
+
+    static Vector3[] Shrink(Vector3[] q, float by)
+    {
+        Vector3 c = (q[0] + q[1] + q[2] + q[3]) / 4f;
+        var r = new Vector3[4];
+        for (int i = 0; i < 4; i++) r[i] = q[i] + (c - q[i]).normalized * by;
+        return r;
+    }
+
+    // Two convex quads (xz plane) overlap unless some edge direction separates them (separating axis test)
+    static bool Overlap(Vector3[] a, Vector3[] b)
+    {
+        foreach (var q in new[] { a, b })
+            for (int i = 0; i < 4; i++)
+            {
+                Vector3 e = q[(i + 1) % 4] - q[i];
+                var axis = new Vector2(-e.z, e.x);
+                float aMin = float.MaxValue, aMax = float.MinValue, bMin = float.MaxValue, bMax = float.MinValue;
+                foreach (var p in a) { float v = axis.x * p.x + axis.y * p.z; aMin = Mathf.Min(aMin, v); aMax = Mathf.Max(aMax, v); }
+                foreach (var p in b) { float v = axis.x * p.x + axis.y * p.z; bMin = Mathf.Min(bMin, v); bMax = Mathf.Max(bMax, v); }
+                if (aMax <= bMin || bMax <= aMin) return false;
+            }
+        return true;
+    }
+
+    // Shortest distance from a point to the curve (xz plane)
+    static float DistanceToCurve(List<Vector3> pts, Vector3 p)
+    {
+        float best = float.MaxValue;
+        for (int i = 0; i < pts.Count - 1; i++)
+        {
+            Vector3 a = pts[i], ab = pts[i + 1] - a;
+            float t = ab.sqrMagnitude > 1e-10f ? Mathf.Clamp01(Vector3.Dot(p - a, ab) / ab.sqrMagnitude) : 0f;
+            Vector3 q = a + ab * t - p;
+            q.y = 0f;
+            best = Mathf.Min(best, q.magnitude);
+        }
+        return best;
     }
 
     // "Dividers": the first point on the curve, from segment `progress` onwards, that is exactly L away from
