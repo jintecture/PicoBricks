@@ -103,7 +103,7 @@ public class GhostPlayer : MonoBehaviour
             if (!string.IsNullOrEmpty(msg.error))
             {
                 Stop();
-                label.text = "RoboDK: " + msg.error;
+                label.text = "Robot preview: " + msg.error + "\nDraw again (TRIGGER)";
                 continue;
             }
             if (msg.frames != null && msg.frames.Length > 0) Play(msg);

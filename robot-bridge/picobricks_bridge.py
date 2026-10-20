@@ -490,13 +490,20 @@ def preview(jobs, tf):
             x, y, z, yaw = T
             travel = (x, y, max(z + APPROACH, tf.origin[2] + TRAVEL_Z), yaw)
             up, at = (x, y, z + APPROACH, yaw), (x, y, z, yaw)
-            q = ik(travel, q)
-            add(q)
-            q = straight(travel, up, q)
-            q = straight(up, at, q)
-            frames[-1].update(grip=grip, brick=name)
-            q = straight(at, up, q)
-            q = straight(up, travel, q)
+            try:
+                q = ik(travel, q)
+                add(q)
+                q = straight(travel, up, q)
+                q = straight(up, at, q)
+                frames[-1].update(grip=grip, brick=name)
+                q = straight(at, up, q)
+                q = straight(up, travel, q)
+            except ValueError:
+                where = "in the tray" if grip == "close" else "in the wall"
+                dist = math.hypot(x, y)
+                why = "too close to its base" if dist < 250 else "too far away"
+                raise ValueError("the robot can't reach %s %s (%.0f cm from the robot: %s)"
+                                 % (name, where, dist / 10, why))
     add(home)
     return frames
 

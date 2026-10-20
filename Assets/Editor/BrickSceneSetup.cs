@@ -127,7 +127,8 @@ public static class BrickSceneSetup
             Vector3 robotBase = ghost.Component.baseInWorkspace;
             float trayLeft = robotBase.x - TrayRightEdgeFromRobot - TraySize.x;
             float trayFront = ghost.Depth - EdgeMargin - TraySize.y;
-            trayOffset = new Vector2(trayLeft + ghost.Width / 2f, trayFront);
+            // measured from the middle of the front edge, like the robot (TableCalibration.trayFromOrigin)
+            trayOffset = new Vector2(trayLeft, trayFront);
 
             // Drawing area: from the front edge to just before the tray; left edge where every point is still
             // within the robot's reach
@@ -145,7 +146,8 @@ public static class BrickSceneSetup
         // The bricks start in its pockets, like the real ones the robot picks up.
         var tray = new GameObject("PickupTray");
         tray.transform.SetParent(workspace.transform, false);
-        tray.transform.localPosition = new Vector3(-table.transform.localScale.x / 2f + trayOffset.x, 0f, trayOffset.y);
+        float trayFrom = ghost != null ? 0f : -table.transform.localScale.x / 2f;
+        tray.transform.localPosition = new Vector3(trayFrom + trayOffset.x, 0f, trayOffset.y);
         if (trayMesh != null)
         {
             tray.AddComponent<MeshFilter>().sharedMesh = trayMesh;
@@ -215,6 +217,7 @@ public static class BrickSceneSetup
             calibration.floor = floor.transform;
             calibration.tray = tray.transform;
             calibration.trayOffset = trayOffset;
+            calibration.trayFromOrigin = ghost != null;
             calibration.rightController = FindChild(rig.transform, "Right Controller");
             calibration.bricks = controls;
             calibration.passthrough = passthrough;

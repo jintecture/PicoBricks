@@ -15,8 +15,12 @@ public class TableCalibration : MonoBehaviour
     public Passthrough passthrough;
     [Tooltip("Pickup tray (with the bricks): put at the table's front-left corner after calibration")]
     public Transform tray;
-    [Tooltip("Tray's front-left corner, measured from the table's front-left corner (x right, y away), m")]
+    [Tooltip("Tray's front-left corner, measured from the table's front-left corner (or from the middle of the front edge, see trayFromOrigin), x right, y away, m")]
     public Vector2 trayOffset = Vector2.zero;
+    [Tooltip("Measure trayOffset from the middle of the front edge (the table frame's origin) instead of the front-left " +
+             "corner. On with the ghost robot: the robot is placed from that middle too, so the tray keeps its distance " +
+             "to the robot whatever table width the calibration measures")]
+    public bool trayFromOrigin;
 
     [Tooltip("How far in front of the controller the measuring tip sits (m)")]
     public float tipOffset = 0.06f;
@@ -136,7 +140,8 @@ public class TableCalibration : MonoBehaviour
         table.localScale = new Vector3(width, height, depth);
         if (floor != null) floor.localPosition = new Vector3(0f, -height, 0f);
         // Tray at the real table's front-left corner (before the reset, so the bricks go back into it)
-        if (tray != null) tray.localPosition = new Vector3(-width / 2f + trayOffset.x, 0f, trayOffset.y);
+        float trayFrom = trayFromOrigin ? 0f : -width / 2f;
+        if (tray != null) tray.localPosition = new Vector3(trayFrom + trayOffset.x, 0f, trayOffset.y);
 
         if (bricks != null) bricks.ResetBricks();
 
