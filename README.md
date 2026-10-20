@@ -19,7 +19,7 @@ Part of the Creative Robotics group project (TU Delft, ARIT1507, Oct 2026).
 
 ## What it does right now (v2, iteration 1: rectangle along a curve)
 - Shows your **real room** through the headset cameras (passthrough).
-- **Calibrate** the virtual table onto the real table by touching 4 points. A white outline shows the **build area** (the table minus a 3 cm margin).
+- **Calibrate** the virtual table onto the real table by touching **2 points**: the table's **front-right corner** (next to the robot) and any point further left on the **front edge**. The table always gets the real **LAMA table size** (143 × 61 cm), anchored at that corner, so you can also test on a smaller table at home. (Scenes without the ghost robot use the older 4-point calibration that measures the table.)
 - **Draw a curve** (or a straight line) on the table with the controller's laser. The bricks **mimic the curve**: it is scaled to the wall length, the bricks follow it in 10 cm steps and **always touch at one corner** (the one on the inside of each bend). The curve's start point is the wall's first corner. Logic explained in the DEVLOG.
 - **Choose the number of layers (1–3).** With 6 bricks: 1 layer = 6 bricks long (60 cm), 2 layers = 3 × 2 (30 cm), 3 layers = 2 × 3 (20 cm).
 - Press **OK (A)** and the bricks build the wall: lying flat, along the curve, stacked straight up. If it doesn't fit on the table, you're asked to draw again.
@@ -33,7 +33,7 @@ Part of the Creative Robotics group project (TU Delft, ARIT1507, Oct 2026).
 | Button | Action |
 | --- | --- |
 | **B** (right controller) | Start table calibration |
-| **Trigger** (right controller) | During calibration: record a point (front-left corner, front-right corner, back-left corner, floor). Otherwise: **point at the table and hold to draw the wall curve**; press again to draw a new wall |
+| **Trigger** (right controller) | During calibration: record a point (front-right corner, then a point further left on the front edge). Otherwise: **point at the table and hold to draw the wall curve**; press again to draw a new wall |
 | **Thumbstick left/right** (right) | Number of layers (1–3) |
 | **A** (right controller) | OK: build the wall |
 | **X** (left controller) | Put all bricks back in the tray |

@@ -218,6 +218,9 @@ public static class BrickSceneSetup
             calibration.tray = tray.transform;
             calibration.trayOffset = trayOffset;
             calibration.trayFromOrigin = ghost != null;
+            // With the ghost robot the table is the LAMA table: known size, 2-point calibration from its right corner
+            calibration.fixedSize = ghost != null;
+            if (ghost != null) calibration.fixedTableSize = new Vector3(ghost.Width, ghost.Height, ghost.Depth);
             calibration.rightController = FindChild(rig.transform, "Right Controller");
             calibration.bricks = controls;
             calibration.passthrough = passthrough;
