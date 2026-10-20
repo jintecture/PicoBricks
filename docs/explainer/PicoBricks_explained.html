@@ -1,0 +1,622 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PicoBricks explained from zero</title>
+<style>
+  @page { size: A4; margin: 18mm 17mm 18mm 17mm; }
+  body { font-family: "Segoe UI", Arial, sans-serif; font-size: 10.5pt; line-height: 1.55; color: #1a1a1a; }
+  h1 { font-size: 22pt; margin: 0 0 6pt; page-break-before: always; border-bottom: 2px solid #1a1a1a; padding-bottom: 4pt; }
+  h1.first { page-break-before: avoid; }
+  h2 { font-size: 14pt; margin: 18pt 0 4pt; color: #7a2e12; }
+  h3 { font-size: 11.5pt; margin: 12pt 0 3pt; }
+  p { margin: 4pt 0 6pt; }
+  ul, ol { margin: 3pt 0 6pt 0; padding-left: 18pt; }
+  li { margin: 2pt 0; }
+  table { border-collapse: collapse; width: 100%; margin: 6pt 0 10pt; font-size: 9.5pt; page-break-inside: auto; }
+  th, td { border: 1px solid #bbb; padding: 4pt 6pt; vertical-align: top; text-align: left; }
+  th { background: #f1ece8; }
+  tr { page-break-inside: avoid; }
+  code { font-family: Consolas, monospace; font-size: 9pt; background: #f4f4f4; padding: 0 2pt; }
+  pre { font-family: Consolas, monospace; font-size: 8.6pt; background: #f6f6f6; border: 1px solid #ddd; padding: 6pt 8pt; white-space: pre-wrap; page-break-inside: avoid; }
+  .box { border: 1px solid #c9b9ae; background: #fbf6f2; padding: 6pt 10pt; margin: 8pt 0; page-break-inside: avoid; }
+  .analogy { border-left: 0; background: #eef4fa; border: 1px solid #c4d6e8; padding: 6pt 10pt; margin: 8pt 0; page-break-inside: avoid; }
+  .cover { text-align: left; margin-top: 40mm; }
+  .cover h1 { border: 0; font-size: 30pt; page-break-before: avoid; }
+  .small { font-size: 9pt; color: #555; }
+  .toc li { margin: 1pt 0; }
+  svg text { font-family: "Segoe UI", Arial, sans-serif; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <h1 class="first">PicoBricks, explained from zero</h1>
+  <p style="font-size:14pt">Everything that happened in the AR part of our Creative Robotics project, from the first install to the ghost robot building a wall in the headset. Written so that someone who has never programmed, never used GitHub and never touched VR, AR or a robot can follow it.</p>
+  <p>TU Delft · MSc Architecture · ARIT1507 Creative Robotics in Spatial Design<br>
+  Group: Matthias Nahum, Parjanya Singh, Suzanne Minkels, Jin Kim<br>
+  Covers 9 – 21 October 2026 · Written for Jin Kim, to listen to (NotebookLM) and to explain to others</p>
+  <div class="box">
+    <b>How to use this document.</b> It is long on purpose: every term is explained the first time it appears, and the important ideas come back with an everyday comparison ("analogy" boxes in blue). Part 1 is the big picture. Part 2 is a dictionary of words. Part 3 tells the story day by day. Part 4 follows one wall through every device and every conversion. Part 5 lists every file type. Part 6 gives the problems we hit and what they teach. Part 7 is what is still open, plus ready-made explanations of 1 and 5 minutes.
+  </div>
+  <h3>Contents</h3>
+  <ol class="toc">
+    <li>The project in one page</li>
+    <li>The words you need (a beginner's dictionary)</li>
+    <li>The devices and programs, and what each one does</li>
+    <li>The story, day by day (9 – 21 October)</li>
+    <li>How one wall travels through the whole system (inputs, outputs, conversions)</li>
+    <li>Every file type in the project</li>
+    <li>Where everything lives (GitHub folder map, other places)</li>
+    <li>Problems we hit and what they teach</li>
+    <li>The rest of the team and the two robot routes</li>
+    <li>Open questions, next steps, and how to explain it yourself</li>
+  </ol>
+</div>
+
+<!-- ===================================================================== -->
+<h1>1. The project in one page</h1>
+
+<h2>The idea</h2>
+<p>The group's question is: <i>how can robots assist or enhance humans in design?</i> Instead of the robot being a labourer, it becomes a creative partner. Our concrete experience: a visitor puts on a headset, <b>designs a small wall</b> by drawing a curve on a real table, sees the wall appear in front of them in <b>augmented reality</b>, watches a <b>see-through "ghost" robot</b> build it in the headset, confirms, and then the <b>real UR5 robot</b> builds it with real timber bricks. Afterwards a camera-based system (Suzanne) lets the robot take the wall apart again, so the next visitor can start fresh.</p>
+
+<h2>Who does what</h2>
+<table>
+<tr><th>Person</th><th>Part</th></tr>
+<tr><td>Jin Kim + Parjanya Singh</td><td>The AR app on the Pico headset (this document). Parjanya also wrote the first version of the laptop "bridge" to the robot.</td></tr>
+<tr><td>Matthias Nahum</td><td>The robot side: making the UR5 move bricks. His route goes through Grasshopper (inside Rhino).</td></tr>
+<tr><td>Suzanne Minkels</td><td>Computer vision: a Raspberry Pi camera reads markers on the table and bricks, so the robot can take the wall apart.</td></tr>
+</table>
+
+<h2>The lecturer's key requirement</h2>
+<p>The user must <b>see the robot build the wall in the headset and confirm, before the real robot moves</b>. The lecturer pointed us to HANDZONe, a TU Delft system that shows a live robot in VR. We took HANDZONe's 3D models of the UR5 and its table, and built our own preview around them.</p>
+
+<h2>Where we are on 21 October</h2>
+<ul>
+<li>✅ The headset shows the real room (passthrough) with virtual bricks, table and robot lined up on a real table.</li>
+<li>✅ You place the table with two touches, draw a curve, choose 1–3 layers, and six bricks immediately form a wall along the curve (preview).</li>
+<li>✅ Press <b>A</b> to confirm; the wall is sent over Wi-Fi to the laptop.</li>
+<li>✅ The laptop works out every joint angle the robot needs (our own robot maths), and sends the movements back.</li>
+<li>✅ The ghost robot in the headset picks each brick from the tray and builds the wall, exactly as the real robot would.</li>
+<li>⏳ Not yet: running it on the real UR5 at the LAMA table (needs a lab session with Matthias).</li>
+</ul>
+
+<div class="analogy"><b>The whole thing in one comparison.</b> Think of an architect, a messenger and a builder. The headset is the <b>architect's sketchbook</b>: you draw, and it turns your sketch into an exact list of brick positions. The laptop is the <b>messenger plus the builder's foreman</b>: it receives the list and works out every move the builder's arm must make. The robot is the <b>builder</b>. Before the builder lifts anything, the foreman sends a <b>rehearsal</b> back to the sketchbook: a see-through robot acts out the build, so you can say "yes, go" or "no, let me redraw".</div>
+
+<!-- ===================================================================== -->
+<h1>2. The words you need</h1>
+<p>Grouped by topic. You don't need to memorise these; come back when a word is unclear.</p>
+
+<h2>Reality: VR, AR and passthrough</h2>
+<table>
+<tr><th>Word</th><th>Meaning</th></tr>
+<tr><td>VR (virtual reality)</td><td>You see only a computer-made world; the real room is hidden.</td></tr>
+<tr><td>AR (augmented reality)</td><td>You see the real world with computer-made objects added on top.</td></tr>
+<tr><td>MR (mixed reality)</td><td>Often used for AR where virtual things respond to the real room. Our app is AR/MR.</td></tr>
+<tr><td>XR (extended reality)</td><td>Umbrella word for VR, AR and MR. Unity's tools for headsets are called "XR".</td></tr>
+<tr><td>Passthrough (video see-through, VST)</td><td>The headset's outside cameras film the room and show it on the screens inside, live. That is how a VR headset becomes an AR headset. The Pico calls it "Video Seethrough".</td></tr>
+<tr><td>Tracking</td><td>The headset constantly measures where it and the controllers are in the room (position and rotation), using its cameras and motion sensors.</td></tr>
+<tr><td>Calibration</td><td>Telling the app where a real thing is. Our app doesn't know where your table is until you touch it with the controller.</td></tr>
+<tr><td>Rig / XR Origin</td><td>The invisible "you" in the app: the camera (your eyes) plus the two controllers (your hands).</td></tr>
+<tr><td>Ghost robot</td><td>Our see-through 3D model of the UR5 that acts out the build in the headset before the real robot moves.</td></tr>
+</table>
+
+<h2>Programming and apps</h2>
+<table>
+<tr><th>Word</th><th>Meaning</th></tr>
+<tr><td>Code / script</td><td>Written instructions for the computer. Our app's scripts are in the language <b>C#</b> ("C sharp"); the laptop bridge is in <b>Python</b>.</td></tr>
+<tr><td>Compile</td><td>Translate human-readable code into something the machine runs. "Compile error" = the translator found a mistake and stops.</td></tr>
+<tr><td>Build</td><td>Package the whole project into one installable app.</td></tr>
+<tr><td>APK</td><td>The installable app file for Android (the Pico runs Android). Like an .exe on Windows.</td></tr>
+<tr><td>Sign / keystore</td><td>Android only installs apps that carry a digital signature. The signature comes from a private file, the <b>keystore</b> (<code>user.keystore</code>), protected by a password. It's like a wax seal: only the owner of the seal can make updates to the same app. Never upload it publicly.</td></tr>
+<tr><td>SDK (software development kit)</td><td>A toolbox a company gives developers so their apps can use its hardware. The PICO SDK lets Unity talk to the Pico headset (passthrough, controllers, tracking).</td></tr>
+<tr><td>Package</td><td>A ready-made add-on for Unity (for example the PICO SDK, or the XR Interaction Toolkit for grabbing things).</td></tr>
+<tr><td>Batch mode</td><td>Running Unity without its window, from a command, to check that everything compiles or to run a setup step automatically.</td></tr>
+<tr><td>Log / console</td><td>The running diary of a program: messages, warnings (yellow) and errors (red).</td></tr>
+<tr><td>Bug</td><td>A mistake in a program that makes it behave wrongly. Debugging = finding and fixing it.</td></tr>
+</table>
+
+<h2>Unity words</h2>
+<table>
+<tr><th>Word</th><th>Meaning</th></tr>
+<tr><td>Unity / Unity Editor</td><td>A "game engine": a program for building interactive 3D apps and games. The Editor is the window where you build the project.</td></tr>
+<tr><td>Unity Hub</td><td>The launcher that installs Unity versions and opens projects. We use exactly version <b>6000.3.8f1</b>, the same as HANDZONe.</td></tr>
+<tr><td>Project</td><td>The folder with everything for one app (our project folder is <code>PicoBricks</code>).</td></tr>
+<tr><td>Scene</td><td>One "stage" in the app with everything on it (our scene: <code>SampleScene.unity</code>).</td></tr>
+<tr><td>GameObject</td><td>Any thing in the scene: a brick, the table, the camera, an invisible helper.</td></tr>
+<tr><td>Component</td><td>A piece of behaviour or property attached to a GameObject: its shape (mesh), its material, physics (Rigidbody), or one of our scripts.</td></tr>
+<tr><td>Transform</td><td>Every GameObject's position, rotation and scale. Transforms can be nested: a child moves with its parent.</td></tr>
+<tr><td>Prefab</td><td>A saved, reusable GameObject (like a template). The HANDZONe robot + table came in as a prefab.</td></tr>
+<tr><td>Asset</td><td>Any file the project uses: models, materials, scripts, sounds.</td></tr>
+<tr><td>Mesh / material</td><td>Mesh = the 3D shape (triangles). Material = how it looks (colour, transparency).</td></tr>
+<tr><td>Rigidbody / kinematic</td><td>Rigidbody = the object obeys physics (gravity, collisions). Kinematic = physics switched off; the object stays exactly where the code puts it.</td></tr>
+<tr><td>Collider</td><td>An invisible shape used for bumping into things.</td></tr>
+<tr><td>URP</td><td>Universal Render Pipeline: Unity's way of drawing images, tuned for mobile devices like the Pico.</td></tr>
+<tr><td>HDR</td><td>High dynamic range colour. In our case it caused a black background, because its colour format had no transparency (see Part 8).</td></tr>
+<tr><td>Play mode</td><td>Running the app inside the Editor on the laptop, without the headset.</td></tr>
+<tr><td>Build and Run (Ctrl+B)</td><td>Build the APK and install it on the connected headset.</td></tr>
+</table>
+
+<h2>Sharing work: Git and GitHub</h2>
+<table>
+<tr><th>Word</th><th>Meaning</th></tr>
+<tr><td>Git</td><td>A program that keeps the full history of a project folder, so you can go back to any earlier version and work in parallel safely.</td></tr>
+<tr><td>GitHub</td><td>A website that stores Git projects online, so a team can share them. Ours: <code>github.com/jintecture/PicoBricks</code> (private).</td></tr>
+<tr><td>Repository (repo)</td><td>One project tracked by Git, with all its history.</td></tr>
+<tr><td>Commit</td><td>A saved snapshot of the project with a short message ("what changed and why"). Like a page in a diary.</td></tr>
+<tr><td>Push / pull</td><td>Push = upload your new commits to GitHub. Pull = download your teammates' commits.</td></tr>
+<tr><td>Clone</td><td>Download a full copy of a repository for the first time.</td></tr>
+<tr><td>Branch</td><td>A parallel line of work. You can try something on a branch without disturbing the main version (<code>main</code>).</td></tr>
+<tr><td>Merge</td><td>Combine a branch back into another. A <b>merge conflict</b> happens when two people changed the same lines; a human picks the right version.</td></tr>
+<tr><td>Pull request (PR)</td><td>On GitHub, a request "please merge my branch", where others can look first.</td></tr>
+<tr><td>Tag</td><td>A permanent bookmark on one commit, like <code>v1-manual-placement</code>.</td></tr>
+<tr><td>.gitignore</td><td>A list of files Git should not track (huge generated folders, the private keystore, passwords).</td></tr>
+<tr><td>Git LFS</td><td>Large File Storage: an add-on for big files (HANDZONe uses it, 6 GB).</td></tr>
+</table>
+<div class="analogy"><b>Git in one comparison.</b> Git is a Google Docs version history for a whole folder, but with deliberate "save points" (commits) that carry a note, and with the ability to make a parallel copy (branch) to try an idea and later fold it back in (merge).</div>
+
+<h2>Robots</h2>
+<table>
+<tr><th>Word</th><th>Meaning</th></tr>
+<tr><td>UR5</td><td>A robot arm by Universal Robots. 6 rotating joints, reach 850 mm, carries up to 5 kg. Ours is an older "CB3" model.</td></tr>
+<tr><td>Joint</td><td>A motor that rotates one part of the arm. The six joints in order: <b>base</b> (turns the whole arm), <b>shoulder</b>, <b>elbow</b>, <b>wrist 1, wrist 2, wrist 3</b>.</td></tr>
+<tr><td>Joint angles</td><td>Six numbers (degrees or radians) that fully describe the arm's pose, for example (0, −90, −90, −90, 90, 0).</td></tr>
+<tr><td>Flange</td><td>The round metal plate at the end of the arm, where a tool is bolted on.</td></tr>
+<tr><td>Tool / gripper / TCP</td><td>The gripper is the "hand" bolted to the flange. TCP (tool centre point) is the exact point of the tool that should go to a target, for example between the gripper's fingertips.</td></tr>
+<tr><td>Forward kinematics (FK)</td><td>From joint angles to "where is the hand?". Easy: just follow the arm link by link.</td></tr>
+<tr><td>Inverse kinematics (IK)</td><td>From "I want the hand here, pointing down" to "which joint angles?". Harder; for the UR5 there is a known exact formula with up to 8 answers (elbow up/down, wrist flipped, etc.).</td></tr>
+<tr><td>Reach</td><td>How far from its base the robot can put its tool. 850 mm is the maximum; with the gripper pointing down it's less.</td></tr>
+<tr><td>Teach pendant / Polyscope</td><td>The robot's tablet with buttons, and its software. You can read coordinates there and move ("jog") the arm by hand.</td></tr>
+<tr><td>URScript</td><td>The UR robot's own little programming language (for example <code>movej</code> = move by joints, <code>movel</code> = move in a straight line).</td></tr>
+<tr><td>MoveJ / MoveL</td><td>MoveJ: each joint turns smoothly to its new angle (the hand moves in a curve). MoveL: the hand moves in a straight line (used for going straight down to a brick).</td></tr>
+<tr><td>RoboDK</td><td>Software that simulates robots on the laptop and can drive real ones. Its trial licence on Jin's laptop expired on 19 October.</td></tr>
+<tr><td>URSim</td><td>Universal Robots' simulator of the robot's controller.</td></tr>
+<tr><td>Digital twin</td><td>A virtual copy of a real machine that mirrors it. Our ghost robot is a preview twin.</td></tr>
+</table>
+
+<h2>Geometry and coordinates</h2>
+<table>
+<tr><th>Word</th><th>Meaning</th></tr>
+<tr><td>Coordinate frame</td><td>A starting point plus three directions (x, y, z) you measure from. The same point has different numbers in different frames, like an address given "from the station" or "from the church".</td></tr>
+<tr><td>Table frame (our "Workspace")</td><td>Our main frame. Origin = the middle of the table's front edge (where you stand), on the table top. x = to your right, "away" = into the table, and up.</td></tr>
+<tr><td>Robot base frame</td><td>The robot's own frame, starting at the centre of its base, in millimetres.</td></tr>
+<tr><td>y-up / z-up</td><td>Unity calls "up" y; robots, Rhino and most engineers call "up" z. Converting means swapping axes.</td></tr>
+<tr><td>Left-handed / right-handed</td><td>Two mirror-image conventions for which way the third axis points. Unity is left-handed; robots are right-handed. This flips the sign of rotations.</td></tr>
+<tr><td>Yaw</td><td>Rotation around the vertical axis ("which way does the brick point, seen from above").</td></tr>
+<tr><td>Degrees / radians</td><td>Two units for angles: 180° = π radians ≈ 3.14. Robots often use radians.</td></tr>
+<tr><td>Bounding box</td><td>The smallest box around an object. We measured the LAMA table model this way.</td></tr>
+</table>
+
+<h2>Networks</h2>
+<table>
+<tr><th>Word</th><th>Meaning</th></tr>
+<tr><td>IP address</td><td>A device's address on a network, for example 192.168.0.150 (headset at home), 192.168.0.249 (laptop at home).</td></tr>
+<tr><td>Port</td><td>A numbered "door" on a device, so different programs can receive their own messages. We use port <b>5005</b> (headset → laptop) and <b>5006</b> (laptop → headset).</td></tr>
+<tr><td>UDP</td><td>A way of sending short messages without a handshake, like posting a postcard. Fast, but a postcard can get lost.</td></tr>
+<tr><td>TCP</td><td>A way of sending with a handshake and delivery check, like a phone call. (Matthias's Grasshopper link uses TCP.)</td></tr>
+<tr><td>Broadcast</td><td>Sending a message to every device on the local network at once, in case the exact address is wrong.</td></tr>
+<tr><td>JSON</td><td>A plain-text format for structured data, with labels and values: <code>{"x": 0.12, "yaw": -90}</code>. Readable by people and by every programming language.</td></tr>
+<tr><td>Hotspot</td><td>The laptop makes its own Wi-Fi network. Windows gives the laptop the address 192.168.137.1 there. At home we don't need it.</td></tr>
+<tr><td>adb</td><td>Android Debug Bridge: a command-line tool to talk to an Android device over USB (install apps, read logs, copy files). Unity uses it to install our app on the Pico.</td></tr>
+<tr><td>USB debugging / developer mode</td><td>Headset settings that allow a computer to install and debug apps over the cable.</td></tr>
+</table>
+
+<!-- ===================================================================== -->
+<h1>3. The devices and programs</h1>
+
+<h2>Hardware</h2>
+<table>
+<tr><th>Thing</th><th>What it is</th><th>Its job in the project</th></tr>
+<tr><td>Pico 4 Enterprise (first headset)</td><td>A standalone VR headset (an Android computer on your head). Firmware (its operating system version) 5.9.9, Android 10. Borrowed.</td><td>Used 9–15 Oct. Its old firmware forced us to use an older PICO SDK (2.5.0).</td></tr>
+<tr><td>Pico 4 Ultra Enterprise (current headset)</td><td>Newer model (A9210), firmware 5.15.5, Android 14. Managed by TU Delft (their apps are installed; we only ever install or remove PicoBricks).</td><td>Runs our app from 15 Oct, with PICO SDK 3.4.0.</td></tr>
+<tr><td>Controllers</td><td>Two handheld trackers with buttons: trigger, grip, thumbstick, A/B (right), X/Y (left).</td><td>Calibrate, draw, choose layers, confirm.</td></tr>
+<tr><td>Laptop (Windows 11)</td><td>Jin's computer.</td><td>Builds the app (Unity), runs the bridge (Python), stores the project (Git), talks to the headset over USB and Wi-Fi.</td></tr>
+<tr><td>UR5 robot (CB3)</td><td>The robot arm in the LAMA lab, bolted to the LAMA table; later moved to the exhibition space.</td><td>Builds the real wall.</td></tr>
+<tr><td>LAMA table</td><td>The table the robot is mounted on: 143 × 61 cm, 91 cm high (measured from the HANDZONe 3D model).</td><td>The real table the AR scene is lined up with.</td></tr>
+<tr><td>Timber bricks</td><td>5 × 5 × 10 cm, 0.12 kg each, 6 of them.</td><td>What the robot builds with.</td></tr>
+<tr><td>Pickup tray</td><td>A 3D-printed holder (PLA plastic, Bambu A1 printer) with 6 pockets, 229 × 250 × 19.8 mm.</td><td>Makes sure each real brick starts in a known, repeatable spot for the robot to pick up.</td></tr>
+<tr><td>Raspberry Pi + camera (Suzanne)</td><td>A tiny computer with a camera, on a tripod.</td><td>Reads markers to see the bricks, for taking the wall apart.</td></tr>
+</table>
+
+<h2>Software</h2>
+<table>
+<tr><th>Program</th><th>Where it runs</th><th>Its job</th></tr>
+<tr><td>Unity 6000.3.8f1 + Unity Hub</td><td>Laptop</td><td>Building the headset app.</td></tr>
+<tr><td>PICO Integration SDK (2.5.0, then 3.4.0)</td><td>Inside the Unity project / the app</td><td>Lets the app use the Pico's passthrough, tracking and controllers.</td></tr>
+<tr><td>XR Interaction Toolkit 3.4.0 (+ "Starter Assets")</td><td>Inside the Unity project</td><td>Ready-made controller laser, grabbing, the XR rig.</td></tr>
+<tr><td>Our app "PicoBricks" (<code>com.lama.picobricks</code>)</td><td>Headset</td><td>Everything the user sees and does.</td></tr>
+<tr><td>Python 3.10 (comes with RoboDK)</td><td>Laptop</td><td>Runs the bridge program.</td></tr>
+<tr><td>The bridge: <code>picobricks_bridge.py</code> + <code>PICOBRICKS.bat</code></td><td>Laptop</td><td>Receives walls from the headset, converts them for the robot, works out the robot's movements, sends the preview back, later drives the robot.</td></tr>
+<tr><td><code>ur5_kinematics.py</code></td><td>Laptop (used by the bridge)</td><td>Our own UR5 joint maths (replaces RoboDK for the preview).</td></tr>
+<tr><td>RoboDK</td><td>Laptop</td><td>Robot simulation. Used on 19 Oct; trial expired, now optional.</td></tr>
+<tr><td>Rhino 8 + Python script</td><td>Laptop</td><td>Generates the pickup tray's 3D model automatically (<code>make_tray.py</code>).</td></tr>
+<tr><td>Bambu Studio</td><td>Laptop</td><td>Prepares the tray's STL file for the 3D printer ("slicing").</td></tr>
+<tr><td>Git + GitHub</td><td>Laptop + website</td><td>Version history and sharing with the team.</td></tr>
+<tr><td>HANDZONe (lecturer's)</td><td>Laptop (local copy only)</td><td>Source of the UR5, gripper and LAMA table 3D models. We never changed or pushed anything there.</td></tr>
+<tr><td>Grasshopper + Robots plugin (Matthias, Suzanne)</td><td>Laptop (Rhino)</td><td>The other robot route; also used by the computer vision part.</td></tr>
+<tr><td>adb</td><td>Laptop</td><td>Installs the app on the headset, copies recordings off it.</td></tr>
+<tr><td>Obsidian vault + Google Drive</td><td>Laptop / cloud</td><td>Jin's notes and copies of headset screenshots and recordings.</td></tr>
+</table>
+
+<svg width="100%" viewBox="0 0 700 300" role="img">
+  <rect x="10" y="20" width="200" height="110" rx="8" fill="#fbe7de" stroke="#8a3b1c"/>
+  <text x="110" y="45" text-anchor="middle" font-size="14" font-weight="600" fill="#5a240f">Headset (Pico 4 Ultra)</text>
+  <text x="110" y="68" text-anchor="middle" font-size="11" fill="#5a240f">PicoBricks app (Unity, C#)</text>
+  <text x="110" y="86" text-anchor="middle" font-size="11" fill="#5a240f">passthrough, drawing, preview,</text>
+  <text x="110" y="102" text-anchor="middle" font-size="11" fill="#5a240f">ghost robot</text>
+  <rect x="250" y="20" width="200" height="110" rx="8" fill="#dce8f5" stroke="#1f3b5c"/>
+  <text x="350" y="45" text-anchor="middle" font-size="14" font-weight="600" fill="#1f3b5c">Laptop (Windows)</text>
+  <text x="350" y="68" text-anchor="middle" font-size="11" fill="#1f3b5c">Unity Editor (builds the app)</text>
+  <text x="350" y="86" text-anchor="middle" font-size="11" fill="#1f3b5c">Bridge (Python) + UR5 maths</text>
+  <text x="350" y="102" text-anchor="middle" font-size="11" fill="#1f3b5c">Git → GitHub</text>
+  <rect x="490" y="20" width="200" height="110" rx="8" fill="#eeeeee" stroke="#444"/>
+  <text x="590" y="45" text-anchor="middle" font-size="14" font-weight="600">UR5 robot</text>
+  <text x="590" y="68" text-anchor="middle" font-size="11">on the LAMA table</text>
+  <text x="590" y="86" text-anchor="middle" font-size="11">gripper, pickup tray,</text>
+  <text x="590" y="102" text-anchor="middle" font-size="11">timber bricks</text>
+  <line x1="210" y1="60" x2="248" y2="60" stroke="#333" marker-end="url(#a)"/>
+  <line x1="248" y1="95" x2="212" y2="95" stroke="#333" marker-end="url(#a)"/>
+  <line x1="450" y1="75" x2="488" y2="75" stroke="#333" stroke-dasharray="4 3" marker-end="url(#a)"/>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#333"/></marker></defs>
+  <text x="20" y="170" font-size="11">USB cable (adb): the laptop installs the app on the headset and copies screenshots/recordings off it.</text>
+  <text x="20" y="190" font-size="11">Wi-Fi, UDP port 5005: headset → laptop, the confirmed wall (JSON).</text>
+  <text x="20" y="210" font-size="11">Wi-Fi, UDP port 5006: laptop → headset, ~200 robot poses for the ghost (JSON).</text>
+  <text x="20" y="230" font-size="11">Ethernet (dashed, not used yet): laptop → robot, URScript on port 30002 (or via RoboDK), robot IP 192.168.1.198.</text>
+  <text x="20" y="250" font-size="11">Internet: laptop ↔ GitHub (code and history), laptop ↔ Google Drive (notes, recordings).</text>
+</svg>
+
+<!-- ===================================================================== -->
+<h1>4. The story, day by day</h1>
+
+<h2>Friday 9 October: getting the tools working</h2>
+<ul>
+<li><b>Unity Hub and Unity 6000.3.8f1.</b> We installed exactly the version HANDZONe uses, because opening a project in another version upgrades it and can break it. The first install was missing the <b>Android modules</b> (needed because the Pico is an Android device). Fix: remove and reinstall with Android Build Support, OpenJDK, Android SDK and NDK.</li>
+<li><b>HANDZONe</b> (the lecturer's project on GitHub) was cloned (6 GB, with Git LFS) and opened, to look at it. It is TU Delft New Media Centre's system to control UR robots from VR: a Unity app with a live robot twin, a server in Docker, and the real robot or URSim. It targets the Meta Quest, so we decided to use it as a <b>source of parts</b>, not as our app.</li>
+<li><b>Decision: a fresh small project, "PicoBricks".</b> Debugging a new headset inside a big unfamiliar project is hard; small is easier to understand.</li>
+<li><b>Headset setup:</b> developer mode and USB debugging on, connected with the PICO cable (a charge-only cable didn't work).</li>
+<li><b>PICO SDK</b> added; "Apply All" and "Fix All" set the right Android settings (Android API 29, IL2CPP/ARM64, the PICO XR plug-in).</li>
+<li><b>Keystore</b> <code>user.keystore</code> created so the app can be signed. Unity forgets its password on every restart, so you re-enter it before building. It is never uploaded to GitHub.</li>
+<li>✅ First build: a grey cube floating in the headset.</li>
+</ul>
+
+<h2>Saturday 10 October: grabbing bricks</h2>
+<ul>
+<li>Wrote <code>BrickSceneSetup.cs</code>: a menu item <b>PicoBricks → Setup Brick Scene</b> that builds the whole scene in one click (rig, table, floor, bricks with physics and grabbing). This way every teammate gets an identical scene, and nobody sets up 50 things by hand.</li>
+<li>✅ Picking up and stacking bricks in VR worked. Reset button (X) added.</li>
+<li>Passthrough attempt: the background stayed <b>black</b>, and the X/Y buttons did nothing. The buttons were fixed by reading the controllers the same way the PICO SDK does (<code>UnityEngine.XR.InputDevices</code>).</li>
+</ul>
+
+<h2>Sunday 11 October: seeing the real room, and placing the table in it</h2>
+<ul>
+<li><b>Black passthrough, cause 1:</b> the old headset's firmware (5.9.9) was too old for PICO SDK 3.x. We don't update a borrowed headset's firmware, so we <b>downgraded the SDK to 2.5.0</b>.</li>
+<li><b>Black passthrough, cause 2:</b> URP's HDR colour format has no transparency ("alpha") channel, so the "see-through" background was painted solid black. Fix: HDR off while passthrough is on. ✅ The real room became visible.</li>
+<li><b>Table floating above the head:</b> on that firmware, switching passthrough on shifted the tracking height by ~1.15 m. Decision: <b>don't trust the headset's floor; measure the real table by touching it</b>.</li>
+<li><b>Table calibration</b> (<code>TableCalibration.cs</code>): press B, touch points with a small white ball in front of the controller, pull the trigger. Version 2 used 4 points: front-left corner, front-right corner, back-left corner, floor. The virtual table copies the real width, depth, height and direction.</li>
+<li>Bugs fixed: bricks falling forever (the invisible floor was in the wrong place → it now moves with the table) and the table dropping 1 m with every calibration (the ready-made rig had <b>gravity and walking</b> built in, meant for games → all switched off; in AR the world must stay locked to the room).</li>
+<li>Git set up; first commit. Decisions written down: a 3D-printed tray for repeatable brick positions; measuring table marks with the robot to link headset and robot coordinates.</li>
+</ul>
+
+<h2>Tuesday 13 October: grid snap (Parjanya)</h2>
+<ul>
+<li>Parjanya made <code>BrickSnap.cs</code>: a released brick turns to the nearest 90°, snaps to a 5 cm grid or centres on the brick below, and locks in place. Version 2 added standing bricks and stopped bricks floating when one below was removed.</li>
+<li>His laptop had trouble installing on the headset (adb couldn't find it); workaround: install the APK by hand.</li>
+</ul>
+
+<h2>Wednesday 14 October: the pickup tray</h2>
+<ul>
+<li><b>Problem:</b> the robot needs each brick to start in exactly the same place. <b>Solution:</b> a 3D-printed tray.</li>
+<li>The tray is <b>generated by a Python script inside Rhino 8</b> (<code>make_tray.py</code>) instead of modelled by hand, so a measurement can be changed and the tray regenerated. Output: STL files for the printer.</li>
+<li>Rhino's boolean operations (cutting shapes out) failed at first: some cutting shapes were inside-out. Fix: turn them outward, merge all cutters, subtract once.</li>
+<li>From 10 bricks in two trays to <b>6 bricks in one tray</b>. Clearance tested with small printed test frames: <b>0.5 mm per side</b> fits the real bricks.</li>
+<li>Later redesign: corner pieces with big 45° slopes that meet in a ridge, so a brick landing anywhere near a pocket slides into it (229 × 250 × 19.8 mm).</li>
+</ul>
+
+<h2>Thursday 15 October: new headset, new idea</h2>
+<ul>
+<li>Parjanya's grid snap merged into <code>main</code> (Pull Request #1). The state was bookmarked as tag <b><code>v1-manual-placement</code></b>.</li>
+<li><b>New headset:</b> Pico 4 Ultra Enterprise, firmware 5.15.5. It needs SDK 3.x and its firmware is new enough, so we went <b>back to PICO SDK 3.4.0</b>.</li>
+<li><b>Version 2, the big change of direction:</b> instead of placing bricks one by one, you <b>describe the wall</b>: draw a line, choose the number of layers (1–3), and the app works out every brick. With 6 bricks: 1 layer = 6 × 1 (60 cm), 2 layers = 3 × 2 (30 cm), 3 layers = 2 × 3 (20 cm). Grid snap switched off.</li>
+<li>After the first test, Jin's feedback: it must be a <b>curve</b>; bricks must touch at one corner and <b>mimic the curve</b>; bricks should start in the tray; bricks should be readable (brown, 70 % see-through, black edges). All built the same day (<code>WallBuilder.cs</code>), and the tray's STL was imported into Unity (<code>TrayMeshImporter.cs</code>, because Unity can't read STL by itself).</li>
+<li>✅ Tested in the headset: "this is good".</li>
+</ul>
+
+<h2>Friday 16 – Sunday 18 October: the team's work comes together</h2>
+<ul>
+<li><b>Matthias</b> added a CSV exporter (brick positions for Rhino), merged via Pull Requests #2 and #3, and worked on a live Unity → Grasshopper link (branch <code>tcp-receiver</code>).</li>
+<li><b>Parjanya</b> built the robot link (branch <code>robot-link</code>): <code>BrickSender.cs</code> in the app sends the bricks over Wi-Fi, and the laptop bridge converts them for the robot and drives RoboDK or the UR5.</li>
+<li><b>Jin found a flaw in the curve logic</b> on an S-curve drawing: bricks drifted off the curve. Fixed by aiming every brick from where it really starts ("dividers" and "folding ruler", Part 5).</li>
+<li><b>Everything merged into <code>main</code></b>, carefully: bookmark tag <b><code>before-robot-link</code></b> first, then merges. The only conflicts were invisible line-ending differences. Parjanya's script didn't compile (two Unity toolkits used the same names); fixed by naming them in full.</li>
+</ul>
+
+<h2>Monday 19 October: headset → laptop → robot simulation, and the ghost robot</h2>
+<ul>
+<li>RoboDK installed. ✅ <b>Headset → laptop worked</b> over home Wi-Fi.</li>
+<li>RoboDK errors fixed: "Invalid item" (RoboDK had been restarted → the bridge now reconnects), "Target cannot be reached" (the placeholder table was too far from the robot). ✅ RoboDK built the headset's wall. Big arrows replaced by small green footprints. RoboDK lagging behind fixed (only real duplicates skipped). Jin kept the <b>"Run? [Y/n]"</b> question on purpose: it gives time to take the headset off.</li>
+<li><b>HANDZONe models imported</b>: UR5 + gripper + LAMA table (models only; a temporary script in our local copy of HANDZONe exported them and was deleted again).</li>
+<li><b>Ghost robot placed</b>: Jin confirmed the real setup (LAMA table, user at the long side, robot on the right). The scene measures the table model itself. The robot is pale blue and see-through; the LAMA table only shows in VR mode.</li>
+<li><b>Joint angle mismatch found and fixed:</b> HANDZONe's model stands upright at "all joints 0", the real UR5 lies flat. Shoulder and wrist 1 get +90°.</li>
+<li>Windows <b>Smart App Control</b> suddenly blocked one of Unity's own files ("An Application Control policy has blocked this file"). Jin turned it off in Windows Security.</li>
+<li>Tray moved to the back corner beside the robot; a black drawing area added.</li>
+<li><b>RoboDK's licence had expired.</b> Decision (Jin): write our own UR5 maths (<code>ur5_kinematics.py</code>) instead of buying a licence. Tested: 2000 random poses, 0.000 mm error.</li>
+<li>✅ <b>The ghost robot built the wall in the headset on the first try.</b></li>
+</ul>
+
+<h2>Tuesday 20 October: making it usable</h2>
+<ul>
+<li><b>Bug:</b> "the robot can't reach" every time, tray on top of the robot. The robot was placed from the middle of the front edge, the tray from the left corner; on a narrower table the tray slid into the robot. Fixed: both measured from the same point.</li>
+<li><b>Jin's idea: 2-point calibration</b> with the real LAMA table size, anchored at the front-right corner next to the robot, so testing on a different table at home still puts robot, tray and drawing area exactly where they'll be in the lab.</li>
+<li>Drawing area made bigger using the robot maths (the robot really reaches 11–81 cm from its base with the gripper pointing down; walls may go 20–75 cm). Walls that poke out now slide to the nearest fitting spot.</li>
+<li>Team message drafted; questions answered (Quest vs Pico: about a day of work, mainly passthrough).</li>
+</ul>
+
+<h2>Wednesday 21 October: catch-up slides, and the confirm step</h2>
+<ul>
+<li>6 slides made for the group's catch-up presentation, in the group deck's style, plus 4 diagrams of the curve logic; headset recordings copied to Google Drive.</li>
+<li><b>Headset test findings:</b> 1-layer walls still refused (the old small drawing area was still stored in the scene → now cleared), bricks overlapping on S-curves (→ every brick is now checked against all earlier bricks), bricks floating and tilted (→ the A button was read by two scripts; pressing it during the ghost's build sent half-moved bricks as a new wall).</li>
+<li><b>Jin's request: confirm before the robot builds.</b> Now: draw → the bricks immediately preview the wall → change layers with the thumbstick → <b>A = "yes, build it"</b> → only then it goes to the robot. ✅ Works.</li>
+</ul>
+
+<!-- ===================================================================== -->
+<h1>5. How one wall travels through the whole system</h1>
+<p>This part follows one wall from the laptop where the app is made, into the headset, over Wi-Fi to the laptop, back to the headset, and (soon) to the robot. At every step: <b>what goes in, what comes out, and what is converted</b>.</p>
+
+<h2>Step 0. Making the app (laptop → headset, by USB)</h2>
+<table>
+<tr><th>In</th><th>What happens</th><th>Out</th></tr>
+<tr><td>Unity project: C# scripts (<code>.cs</code>), models (<code>.fbx</code>, <code>.asset</code>), materials (<code>.mat</code>), the scene (<code>.unity</code>), settings</td><td><b>PicoBricks → Setup Brick Scene</b> builds the scene: the XR rig, the table, floor, tray and 6 bricks, the ghost robot, and wires all the scripts together. Then <b>Ctrl+B</b>: Unity compiles the C# code into machine code for the headset's ARM processor (IL2CPP), packs everything, and signs it with the keystore.</td><td>An app file <code>PicoBricks.apk</code> (~60 MB)</td></tr>
+<tr><td><code>PicoBricks.apk</code></td><td>Unity uses <b>adb</b> over the USB cable to install it on the headset and start it.</td><td>The app running on the headset</td></tr>
+</table>
+
+<h2>Step 1. Placing the table (inside the headset)</h2>
+<p><b>Why:</b> when the app starts, it has no idea where your real table is. Calibration tells it.</p>
+<ol>
+<li>Press <b>B</b>. A white ball sits 6 cm in front of the right controller: the "measuring tip".</li>
+<li>Touch the table's <b>front-right corner</b> (next to the robot), pull the trigger. The app records that 3D point.</li>
+<li>Touch <b>any point further left on the front edge</b>, pull the trigger.</li>
+</ol>
+<p><b>Conversion:</b> the two points give a direction ("right" along the front edge). "Away from you" is worked out as the direction at a right angle to it, flat on the table. The app knows the LAMA table's real size (143 × 61 cm, 91 cm high), so from the right corner it places the whole table: its front-edge middle becomes the <b>origin of the table frame</b> (the "Workspace"). Everything else (the robot, the tray, the bricks, the drawing area) is a child of this Workspace, so it all moves into place together.</p>
+<div class="analogy"><b>Analogy.</b> Pinning a paper map onto a real field. Two pins are enough: the first fixes where the map is, the second fixes which way it's turned. Once pinned, everything printed on the map (robot, tray, wall area) lands in the right spot in the field.</div>
+<p>(Without the ghost robot, an older 4-point version measures any table: front-left, front-right, back-left corner and the floor.)</p>
+
+<h2>Step 2. Drawing the curve (inside the headset)</h2>
+<ul>
+<li><b>Input:</b> you point the right controller's laser at the table and hold the trigger.</li>
+<li>The app finds where the laser ray crosses the table plane ("ray–plane intersection"), converts that point into table coordinates, keeps it inside the black outline, and stores a point every ~1 cm.</li>
+<li>When you release, the curve is <b>smoothed</b>: each point is averaged with its neighbours a few times, to remove hand wobble (the first and last point stay).</li>
+<li><b>Output:</b> a list of points in table coordinates (metres), shown as a cyan line.</li>
+</ul>
+
+<h2>Step 3. From a curve to a wall: the brick logic (inside the headset)</h2>
+<ol>
+<li><b>Resize.</b> One layer of bricks has a fixed length: 6, 3 or 2 bricks × 10 cm. The curve is scaled around its middle until it is exactly that long. A quick small sketch and a big sweep give the same shape at wall size.</li>
+<li><b>Dividers.</b> From where a brick starts, the app looks for the point on the curve exactly 10 cm away (a circle of 10 cm around the start, crossing the curve). The brick points there. The next brick starts where this one ends.</li>
+<li><b>Folding ruler.</b> Two straight bricks can't both follow a bend: one side opens a gap, the other would overlap. So neighbouring bricks share the corner on the <b>inside</b> of the bend, like the hinge of a folding ruler. Since 21 October the app tries both possible hinge corners for every brick, checks the candidate against <b>all</b> bricks laid so far (an exact overlap test, the "separating axis test"), and keeps the one that lands closest to the curve. If a bend is too sharp for 10 cm bricks, it is straightened just enough.</li>
+<li><b>Stack.</b> Every layer repeats the same chain, straight up (layer height 5 cm).</li>
+<li><b>Fit into the robot's area.</b> Every corner, edge midpoint and centre of the bottom bricks must be on the table, off the tray, and 20–75 cm from the robot's base. If not, the app tries sliding the whole wall (same shape) up to 40 cm in 1 cm steps and takes the smallest move that fits.</li>
+</ol>
+<p><b>Output:</b> a plan: for each brick, its centre (x, y, z in metres in the table frame), its rotation, and its footprint. The bricks immediately stand there as a <b>preview</b>. The thumbstick changes 1/2/3 layers and the preview updates. Trigger = draw again.</p>
+
+<h2>Step 4. Confirm, and send to the laptop (headset → laptop, Wi-Fi, port 5005)</h2>
+<p>Press <b>A</b> = "I'm happy with this wall". Then:</p>
+<ol>
+<li><code>WallBuilder</code> saves the plan on the headset as <code>wall_plan.json</code> and announces "confirmed".</li>
+<li><code>BrickSender</code> builds a message and sends it twice: straight to the laptop's address, and as a broadcast (in case the address is wrong). It's one UDP packet of about 1.5 KB.</li>
+</ol>
+<p><b>Conversion inside BrickSender (Unity → robot-style axes):</b> Unity uses x right, y up, z away, and measures yaw clockwise. The message uses x right, <b>y away, z up</b>, and yaw <b>counter-clockwise</b>, like robots and Rhino. So y and z are swapped and the yaw's sign is flipped. Yaw 0 means the brick's long side points away from you.</p>
+<pre>{ "type": "layout", "seq": 3, "frame": "table", "units": "m_deg",
+  "bricks": [
+    { "id": 1, "name": "Brick_1", "standing": false,
+      "pick":  { "x": 0.1155, "y": 0.3915, "z": 0.025, "yaw": 0.0 },     ← its pocket in the tray
+      "place": { "x": -0.150, "y": 0.120,  "z": 0.025, "yaw": -90.0 } },  ← its spot in the wall
+    ...5 more... ],
+  "robot": { "valid": true, "x": 0.47, "y": 0.31, "z": 0.0,             ← where the ghost robot stands
+             "armYaw0": 90, "armYaw90": 180, "check": [ ... ] } }        ← for the automatic line-up check</pre>
+<p><code>seq</code> is the wall's number, so the laptop can ignore the duplicate copy. The bricks are sorted bottom layer first, then along the curve: that's the build order.</p>
+
+<h2>Step 5. The laptop bridge converts the wall for the robot</h2>
+<p>The bridge (<code>picobricks_bridge.py</code>, started with <code>PICOBRICKS.bat</code> → option 3) waits on port 5005. When a wall arrives, it saves it as <code>last_layout.json</code> and converts it in several stages:</p>
+<table>
+<tr><th>Stage</th><th>From → to</th><th>How</th></tr>
+<tr><td>a. Line up with the ghost (simulation)</td><td>Headset's ghost position → a "table frame" for the robot</td><td>The headset says where the ghost robot stands and which way its arm points. The bridge compares that with its own UR5 maths, and works out how the robot is turned on the table. (For the real robot, <code>calib.json</code> is used instead: the robot's own coordinates of the table's two front corners, read off the teach pendant.)</td></tr>
+<tr><td>b. Clean up</td><td>Brick positions → tidy positions</td><td>Heights are rounded to whole brick layers (the headset can be a few mm off and stacking isn't forgiving). A brick turned 180° looks the same, so the yaw is kept between −90° and 90°.</td></tr>
+<tr><td>c. Table → robot base</td><td>metres in the table frame → millimetres from the robot's base</td><td>Move (subtract the base position), rotate (the robot's turn on the table), scale ×1000.</td></tr>
+<tr><td>d. Brick centre → gripper target</td><td>where the brick is → where the gripper's tip must go</td><td>The tip goes to 25 mm below the brick's top face (grasp depth). For placing, 2 mm higher (so it releases just above). The tool points straight down, turned with the brick's yaw.</td></tr>
+<tr><td>e. The route</td><td>pick and place targets → a sequence of moves</td><td>For each brick: go to 250 mm above the table over the pocket → straight down (last 80 mm slowly) → close gripper → straight up → over to the wall → straight down → open → up. Then back home.</td></tr>
+<tr><td>f. Gripper tip → flange</td><td>tool tip → the end plate of the arm</td><td>The gripper is assumed 150 mm long, so the flange is 150 mm above the tip.</td></tr>
+<tr><td>g. Inverse kinematics</td><td>flange position → 6 joint angles</td><td><code>ur5_kinematics.py</code> solves it with the exact UR5 formula. Each pose can have up to 8 solutions (elbow up/down, wrist flipped...); it picks the one closest to the previous pose, so the arm moves smoothly instead of flipping. Straight moves are split into 4 in-between poses each.</td></tr>
+</table>
+<p><b>Output:</b> about 200 poses for 6 bricks, each a list of 6 joint angles; some poses are marked "close gripper on Brick_3" or "open". If anything can't be reached, an error message instead ("can't reach Brick_3 in the tray, 9 cm from the robot: too close to its base").</p>
+<div class="analogy"><b>Inverse kinematics, in plain words.</b> When you reach for a cup, your brain chooses shoulder, elbow and wrist angles without you thinking about it. Inverse kinematics is that calculation for the robot: "hand there, pointing down" in, six joint angles out. Forward kinematics is the reverse and much easier: from the angles, follow the arm piece by piece to see where the hand ends up. We use forward kinematics to <b>check</b> the inverse: 2000 random poses, 0.000 mm error.</div>
+
+<h2>Step 6. The preview goes back to the headset (laptop → headset, port 5006)</h2>
+<pre>{ "type": "preview", "seq": 3,
+  "frames": [
+    { "j": [0, -90, -90, -90, 90, 0] },                                 ← one pose: 6 joint angles (degrees)
+    { "j": [-199.03, -68.2, -112.01, -89.78, 90.0, 70.97] },
+    { "j": [-199.2, -75.8, -121.6, -72.5, 90.0, 70.8], "grip": "close", "brick": "Brick_1" },
+    ...
+    { "j": [-148.56, -97.69, -86.41, -85.9, 90.0, 211.44], "grip": "open", "brick": "Brick_1" },
+    ...about 200 in total... ] }</pre>
+<p>About 12 KB, still one UDP packet. Sent to the address the wall came from.</p>
+
+<h2>Step 7. The ghost robot acts it out (inside the headset)</h2>
+<ol>
+<li><code>GhostPlayer</code> receives the poses, remembers each brick's wall spot, and puts the bricks back in the tray.</li>
+<li>It moves the ghost's joints smoothly from pose to pose (each joint turns at most 90° per second; this is "interpolation": filling in the in-between angles), like a flip-book.</li>
+<li>At "close": the brick is attached to the robot's hand and travels with it. At "open": it's released exactly on its wall spot.</li>
+<li>A label above the robot shows progress ("picking Brick_3 (3/6)"), then "Robot preview done. On the laptop: Run? [Y/n]".</li>
+</ol>
+<p><b>Conversion here: real joint angles → the 3D model's rotations.</b> HANDZONe's robot model is built from nested parts, each turning around its own local axis. Each joint's rotation = its starting rotation + direction (±1) × angle. Two extra corrections: the model's "zero" is upright while the real robot's zero lies flat, so the shoulder and wrist 1 get +90°.</p>
+<p><b>Automatic check:</b> the headset also sends where the ghost's hand is in 3 test poses; the bridge compares with its maths and prints "ghost robot matches the UR5 maths (within 35 mm)". The small difference is because the two measure slightly different points of the hand; a wrong joint direction would give tens of centimetres.</p>
+
+<h2>Step 8. The real robot (next step, not yet tested)</h2>
+<ul>
+<li>The laptop asks <b>"Run? [Y/n]"</b> (a second safety confirmation, and time to take the headset off).</li>
+<li>Option 8 in the menu writes a <b>URScript</b> program and sends it to the robot (IP 192.168.1.198, port 30002) over an Ethernet cable. Option 7 uses RoboDK (needs a licence).</li>
+<li>Before that, at the robot: <b>menu 5</b> = jog the robot's tip onto the table's two front corners and type the coordinates (this creates <code>calib.json</code>); <b>menu 6</b> = the robot hovers 30 mm above both corners to check.</li>
+<li>Planned improvement: send the robot the <b>same joint angles</b> the ghost played, so it can't take a different route.</li>
+</ul>
+
+<h2>All the conversions at a glance</h2>
+<table>
+<tr><th>#</th><th>From</th><th>To</th><th>Where</th></tr>
+<tr><td>1</td><td>Controller position (headset's room tracking)</td><td>Measuring tip, 6 cm in front</td><td>Headset</td></tr>
+<tr><td>2</td><td>Two touched points</td><td>The table frame (origin, directions) + LAMA size</td><td>Headset (calibration)</td></tr>
+<tr><td>3</td><td>Laser ray</td><td>Point on the table, in the table frame</td><td>Headset (drawing)</td></tr>
+<tr><td>4</td><td>Curve points</td><td>Brick plan (position, rotation, footprint)</td><td>Headset (wall logic)</td></tr>
+<tr><td>5</td><td>Unity axes (y up, clockwise yaw)</td><td>Robot-style axes (z up, counter-clockwise yaw)</td><td>Headset (BrickSender)</td></tr>
+<tr><td>6</td><td>Objects</td><td>JSON text → bytes in a UDP packet</td><td>Headset → laptop</td></tr>
+<tr><td>7</td><td>Table frame, metres</td><td>Robot base frame, millimetres</td><td>Laptop (bridge)</td></tr>
+<tr><td>8</td><td>Brick centre</td><td>Gripper tip target → flange target</td><td>Laptop</td></tr>
+<tr><td>9</td><td>Flange target</td><td>6 joint angles (inverse kinematics)</td><td>Laptop</td></tr>
+<tr><td>10</td><td>Radians (inside the maths)</td><td>Degrees (in the message)</td><td>Laptop</td></tr>
+<tr><td>11</td><td>Joint angles</td><td>3D model part rotations (+ zero offsets)</td><td>Headset (ghost)</td></tr>
+<tr><td>12</td><td>Robot targets</td><td>URScript text (<code>movej</code>, <code>movel</code>, gripper output)</td><td>Laptop → robot (future)</td></tr>
+<tr><td>13</td><td>Rhino model (mm, z up)</td><td>STL → Unity mesh (m, y up)</td><td>Laptop (tray import)</td></tr>
+</table>
+
+<!-- ===================================================================== -->
+<h1>6. Every file type in the project</h1>
+<table>
+<tr><th>Extension</th><th>What it is</th><th>Examples in our project</th></tr>
+<tr><td><code>.cs</code></td><td>C# code (Unity scripts)</td><td><code>WallBuilder.cs</code>, <code>TableCalibration.cs</code>, <code>GhostRobot.cs</code>, <code>GhostPlayer.cs</code>, <code>BrickSender.cs</code></td></tr>
+<tr><td><code>.py</code></td><td>Python code</td><td><code>picobricks_bridge.py</code>, <code>ur5_kinematics.py</code>, <code>make_tray.py</code> (runs inside Rhino)</td></tr>
+<tr><td><code>.bat</code></td><td>Windows batch file: a list of commands you double-click</td><td><code>PICOBRICKS.bat</code> (the bridge's menu)</td></tr>
+<tr><td><code>.unity</code></td><td>A Unity scene</td><td><code>Assets/Scenes/SampleScene.unity</code></td></tr>
+<tr><td><code>.prefab</code></td><td>A reusable Unity object</td><td><code>LAMA_UR5.prefab</code> (robot + table from HANDZONe)</td></tr>
+<tr><td><code>.mat</code></td><td>A Unity material (colour, transparency)</td><td><code>BrickTransparent.mat</code>, <code>GhostRobot.mat</code>, <code>DrawArea.mat</code></td></tr>
+<tr><td><code>.asset</code></td><td>A Unity data file (here: meshes, settings)</td><td><code>PickupTray.asset</code>, <code>BrickOutline.asset</code></td></tr>
+<tr><td><code>.meta</code></td><td>Unity's ID card for every file, so references survive renames. Always move together with the file.</td><td>one next to every asset</td></tr>
+<tr><td><code>.fbx</code></td><td>A common 3D model format (with parts and hierarchy)</td><td>HANDZONe's UR5, gripper, table</td></tr>
+<tr><td><code>.stl</code></td><td>A simple 3D model format (triangles only), the standard for 3D printing</td><td><code>pickup_tray_bricks_1-6.stl</code>, <code>test_fit_0.5.stl</code></td></tr>
+<tr><td><code>.3dm</code></td><td>Rhino's own model file</td><td><code>pickup_tray.3dm</code></td></tr>
+<tr><td><code>.json</code></td><td>Structured text data</td><td>the messages, <code>wall_plan.json</code>, <code>last_layout.json</code>, <code>calib.json</code>, <code>LAMA_UR5_joints.json</code>, <code>Packages/manifest.json</code> (list of Unity packages)</td></tr>
+<tr><td><code>.csv</code></td><td>A table as text, values separated by commas (opens in Excel)</td><td><code>scene_objects.csv</code> (Matthias's exporter)</td></tr>
+<tr><td><code>.apk</code></td><td>An installable Android app</td><td><code>PicoBricks.apk</code> (not on GitHub)</td></tr>
+<tr><td><code>.keystore</code></td><td>The private signing key for the app</td><td><code>user.keystore</code> (never on GitHub; shared privately)</td></tr>
+<tr><td><code>.md</code></td><td>Markdown: plain text with simple formatting, shown nicely on GitHub</td><td><code>README.md</code>, <code>docs/DEVLOG.md</code></td></tr>
+<tr><td><code>.script</code></td><td>URScript program for the robot</td><td><code>last_program.script</code> (written by the bridge)</td></tr>
+<tr><td><code>.gitignore</code></td><td>List of files Git should ignore</td><td>in the project root</td></tr>
+<tr><td><code>.png .jpeg .mp4</code></td><td>Images and videos</td><td>headset screenshots and screen recordings</td></tr>
+<tr><td><code>.pptx .pdf</code></td><td>Slides, documents</td><td>catch-up slides, this document</td></tr>
+</table>
+
+<!-- ===================================================================== -->
+<h1>7. Where everything lives</h1>
+<h2>The GitHub repository (<code>jintecture/PicoBricks</code>, private)</h2>
+<table>
+<tr><th>Folder / file</th><th>What's in it</th></tr>
+<tr><td><code>README.md</code></td><td>The front page: what the app does, the controls, the file map, how to start.</td></tr>
+<tr><td><code>docs/DEVLOG.md</code></td><td>The development diary: every step, problem and decision, with dates.</td></tr>
+<tr><td><code>docs/HANDZONE_NOTES.md</code></td><td>What we took from HANDZONe and how.</td></tr>
+<tr><td><code>docs/images/</code></td><td>Pictures used in the docs.</td></tr>
+<tr><td><code>docs/explainer/</code></td><td>This document.</td></tr>
+<tr><td><code>Assets/Scripts/</code></td><td>The app's behaviour (C#).</td></tr>
+<tr><td><code>Assets/Editor/</code></td><td>Tools that only run inside the Unity Editor: the scene setup and the tray importer.</td></tr>
+<tr><td><code>Assets/Scenes/</code></td><td>The scene.</td></tr>
+<tr><td><code>Assets/Materials/</code>, <code>Assets/Models/</code></td><td>Looks and shapes.</td></tr>
+<tr><td><code>Assets/ThirdParty/HANDZONe/</code></td><td>The UR5, gripper and LAMA table models (40 MB).</td></tr>
+<tr><td><code>robot-bridge/</code></td><td>The laptop side: bridge, UR5 maths, menu, calibration files, its own README.</td></tr>
+<tr><td><code>hardware/pickup-tray/</code></td><td>The tray: generator script, STL and Rhino files, previews, README with all measurements.</td></tr>
+<tr><td><code>Packages/</code>, <code>ProjectSettings/</code></td><td>Unity's package list and settings.</td></tr>
+<tr><td>Not on GitHub (on purpose)</td><td><code>Library/</code>, <code>Temp/</code>, <code>Logs/</code> (Unity regenerates them), the APK, the keystore, per-session files like <code>last_layout.json</code>.</td></tr>
+</table>
+<h2>Bookmarks and branches</h2>
+<ul>
+<li>Tags: <code>v1-manual-placement</code> (15 Oct, before the wall-drawing version), <code>before-robot-link</code> (18 Oct, before the big merge).</li>
+<li>Branches: <code>snap-grid</code> (Parjanya, merged), <code>wall-builder</code> (Jin, merged), <code>robot-link</code> (Parjanya, merged), <code>tcp-receiver</code> (Matthias, not merged).</li>
+</ul>
+<h2>Other places</h2>
+<ul>
+<li>The project on the laptop: <code>C:\Users\Jin\PicoBricks</code>.</li>
+<li>On the headset: the app, <code>wall_plan.json</code> in the app's folder, screenshots in <code>Pictures/Screenshots</code>, recordings in <code>Movies/ScreenRecording</code>.</li>
+<li>Google Drive: the Obsidian vault note "AR Brick Project" and copies of the headset captures ("Pico captures").</li>
+<li>The keystore: on Jin's laptop only; shared privately with teammates, never online.</li>
+</ul>
+
+<!-- ===================================================================== -->
+<h1>8. Problems we hit, and what they teach</h1>
+<p>These make good stories when you explain the project, and each one teaches a general lesson.</p>
+<table>
+<tr><th>Problem</th><th>Real cause</th><th>Fix</th><th>Lesson</th></tr>
+<tr><td>No Android option in Unity</td><td>Incomplete install</td><td>Reinstall with Android modules</td><td>Install exactly the versions and modules a project needs.</td></tr>
+<tr><td>Passthrough black (1)</td><td>Headset firmware older than the SDK expected</td><td>Use the older SDK (2.5.0) for the old headset</td><td>Software and hardware versions must match.</td></tr>
+<tr><td>Passthrough black (2)</td><td>The HDR colour format had no transparency channel</td><td>HDR off during passthrough</td><td>"Transparent" needs an alpha channel all the way through.</td></tr>
+<tr><td>Table above the head</td><td>Old firmware shifted tracking height by 1.15 m</td><td>Measure the real table instead of trusting the headset's floor</td><td>Measure the real world; don't assume.</td></tr>
+<tr><td>Table sinking 1 m per calibration</td><td>The ready-made rig had gravity and walking</td><td>Switched off</td><td>Templates come with assumptions (games ≠ AR).</td></tr>
+<tr><td>Rhino booleans failing</td><td>Inside-out cutting shapes</td><td>Flip, merge, subtract once</td><td>Check geometry direction ("normals").</td></tr>
+<tr><td>Bricks drifting off S-curves</td><td>A small shift carried from brick to brick</td><td>Aim each brick from where it really starts</td><td>Correct errors locally so they don't add up. (Found by Jin from a drawing.)</td></tr>
+<tr><td>Parjanya's script didn't compile</td><td>Two toolkits used the same names</td><td>Use the full names</td><td>Always compile after merging.</td></tr>
+<tr><td>RoboDK "Invalid item"</td><td>RoboDK restarted, old handles dead</td><td>Reconnect before each run</td><td>Long-running programs must handle restarts.</td></tr>
+<tr><td>RoboDK showing an older wall</td><td>Waiting for Y/n, and duplicate filter too broad</td><td>Smarter filter, newest wall wins (Y/n kept on purpose)</td><td>Check the data at each step before blaming the maths.</td></tr>
+<tr><td>Ghost arm pointing the wrong way</td><td>Model's zero pose ≠ real robot's zero pose</td><td>+90° offsets, checked with known poses</td><td>Verify conventions with known test cases.</td></tr>
+<tr><td>Unity build blocked by Windows</td><td>Smart App Control blocked an unsigned Unity file</td><td>Turned it off (Jin)</td><td>Security tools can block development tools.</td></tr>
+<tr><td>RoboDK refusing commands</td><td>Trial licence expired</td><td>Own UR5 maths (Jin's decision)</td><td>Avoid depending on licences for core features when a known formula exists.</td></tr>
+<tr><td>Tray inside the robot</td><td>Robot measured from the middle, tray from the left corner</td><td>Measure both from the same point</td><td>Keep things that belong together in one reference frame.</td></tr>
+<tr><td>Walls refused although the area was enlarged</td><td>The old value stayed stored in the scene</td><td>Setup clears it explicitly</td><td>Removing a setting isn't the same as resetting it.</td></tr>
+<tr><td>Bricks overlapping on sharp curves</td><td>Hinge corner guessed, result not checked</td><td>Try both, check against all bricks</td><td>Check the result, not just the rule.</td></tr>
+<tr><td>Bricks floating and tilted</td><td>A button read by two scripts; A during the preview resent half-moved bricks</td><td>Preview + one clear confirm step</td><td>One button, one meaning at a time.</td></tr>
+</table>
+
+<!-- ===================================================================== -->
+<h1>9. The rest of the team and the two robot routes</h1>
+<h2>Suzanne: computer vision for taking the wall apart</h2>
+<p>A Raspberry Pi 3 with a camera on a tripod films the table and streams it to the laptop (RTSP stream via "mediamtx"). ArUco markers (square black-and-white codes) lie flat on the table and are stuck on the bricks. Her "Table Camera Toolkit" (Python) calibrates the camera with a checkerboard, finds the markers, and works out the table plane and each marker's height. Grasshopper turns that into brick positions, and the Robots plugin makes the UR5 remove the top layer; then the table is scanned again, until the wall is gone.</p>
+
+<h2>Two routes from the headset to the robot (not decided yet)</h2>
+<table>
+<tr><th></th><th>Route A: Grasshopper (Matthias)</th><th>Route B: Python bridge (Parjanya + Jin)</th></tr>
+<tr><td>Chain</td><td>Unity → live TCP link → Grasshopper "TCP Receiver" → Robots plugin → UR5</td><td>Headset → Wi-Fi → Python bridge (own UR5 maths) → ghost back in AR → UR5</td></tr>
+<tr><td>Data</td><td>Brick ID, XYZ, yaw</td><td>Pick + place per brick, plus the robot preview</td></tr>
+<tr><td>Status</td><td>Unity → Grasshopper connection shown working</td><td>Ghost robot builds the wall in AR; not yet run on the real robot</td></tr>
+<tr><td>Strengths</td><td>Same tool as the CV disassembly; robot path visible in Rhino; the team knows Grasshopper</td><td>Preview in AR before the robot moves; no licence needed; the ghost and the robot get the same joint angles</td></tr>
+</table>
+<p><b>A possible combination:</b> Grasshopper drives the robot (shared with the computer vision part), and the headset still shows the preview. Somebody would then have to make Grasshopper send the robot's movements back to the headset.</p>
+
+<!-- ===================================================================== -->
+<h1>10. Open questions, next steps, and how to explain it yourself</h1>
+<h2>Next steps</h2>
+<ol>
+<li><b>A lab session with Matthias:</b> print and tape the tray beside the robot; measure the two table corners with the robot (menu 5) and check (menu 6); find out the real gripper length, which output opens and closes it, and whether it can grip a brick lying flat from the top.</li>
+<li>Check that the ghost robot stands exactly on the real robot in the headset.</li>
+<li>Send the robot exactly the joint angles the ghost showed.</li>
+<li>Triangle walls (3 + 2 + 1 bricks).</li>
+</ol>
+<h2>Team decisions</h2>
+<ul>
+<li>Robot route: A, B, or a combination.</li>
+<li>One shared brick list format (the headset already sends JSON).</li>
+<li>Stay on the Pico or move to a Meta Quest (HANDZONe uses a Quest). Estimated about a day of work, mostly passthrough.</li>
+</ul>
+
+<h2>The project in 1 minute</h2>
+<div class="box">"We're making a robot a design partner instead of a labourer. You put on a headset and see the real table, with a robot arm and six timber bricks. You draw a curve on the table with the controller, choose how many layers, and the bricks immediately form that wall in AR. When you press A, the wall goes over Wi-Fi to a laptop, which calculates every movement the robot arm needs and sends it back. A see-through robot in the headset then builds your wall brick by brick, exactly as the real robot will. Next, the real UR5 builds it, and a camera system lets the robot take it apart again for the next visitor."</div>
+
+<h2>The project in 5 minutes (talking points)</h2>
+<ol>
+<li><b>Concept:</b> human-led design, the robot as a creative partner; the user must see and confirm what the robot will do (communication between human and robot).</li>
+<li><b>AR, not VR:</b> passthrough shows the real room; virtual things are lined up with the real table by touching two points.</li>
+<li><b>Designing:</b> draw a curve, choose 1–3 layers; the app turns the curve into brick positions with two simple rules (dividers and folding ruler), keeps it within the robot's reach, and checks bricks never overlap.</li>
+<li><b>Confirming:</b> the bricks preview the wall; A sends it.</li>
+<li><b>Data:</b> a short JSON message over Wi-Fi to the laptop; the laptop converts it from table coordinates to robot coordinates and solves the robot's joint angles (inverse kinematics), about 200 poses.</li>
+<li><b>Rehearsal:</b> the poses go back to the headset, where a ghost UR5 acts out the build.</li>
+<li><b>Real robot:</b> after a second confirmation on the laptop, the same movements go to the UR5. The 3D-printed tray makes sure every real brick starts in a known spot.</li>
+<li><b>Team:</b> Suzanne's camera system for disassembly, Matthias's Grasshopper route; the routes still have to be combined or chosen.</li>
+</ol>
+
+<h2>Questions people might ask you</h2>
+<table>
+<tr><th>Question</th><th>Short answer</th></tr>
+<tr><td>How does the headset know where the table is?</td><td>It doesn't, until you touch two points on the table's front edge. From those and the known table size it places everything.</td></tr>
+<tr><td>How does the robot know where the bricks are?</td><td>They start in a 3D-printed tray at a fixed spot; the same tray is in the app, so every pocket's position is known.</td></tr>
+<tr><td>What exactly is sent between devices?</td><td>Short JSON text messages over Wi-Fi: the wall (brick pick and place positions) one way, the robot's joint angles the other way.</td></tr>
+<tr><td>Why not just use RoboDK?</td><td>Its licence expired, and the robot's joint maths is a known exact formula; doing it ourselves needs no licence and the preview uses exactly the robot's angles.</td></tr>
+<tr><td>Why does the wall sometimes move a bit?</td><td>If it pokes out of the robot's reach, the app slides it to the nearest spot that fits, keeping the shape.</td></tr>
+<tr><td>Why only 6 bricks and 3 options?</td><td>A deliberate first version (rectangle). It gets the whole chain working; a triangle pattern is next.</td></tr>
+<tr><td>Is it safe?</td><td>Two confirmations (headset and laptop), slow speeds for first tests, emergency stop in hand, and the ghost preview shows every move first.</td></tr>
+<tr><td>What did you learn?</td><td>Version control with Git, Unity and AR, coordinate systems, how robots are controlled (forward and inverse kinematics), and a lot of debugging: measure, check each step, change one thing at a time.</td></tr>
+</table>
+
+<p class="small">Sources: the project's GitHub repository (README, DEVLOG, HANDZONE notes, robot-bridge and pickup-tray READMEs, code), the group's catch-up slides (ShortPitchHRC), and the working sessions of 9–21 October 2026.</p>
+</body>
+</html>
