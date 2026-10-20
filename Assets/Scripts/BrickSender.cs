@@ -13,9 +13,10 @@ using UnityEngine.InputSystem;
 
 // Sends the brick layout to the laptop (robot-bridge/picobricks_bridge.py) so the UR5 can build it.
 //
-// Right controller A: with WallBuilder, A = "OK, build the wall". A few frames after A, this script sends
-// every brick that is no longer in its tray pocket. Pressing A again on a built wall sends it again.
-// Also works without WallBuilder (hand-placed bricks): A sends whatever you moved.
+// With WallBuilder: sends only when the user confirms the previewed wall (WallBuilder.Confirmed, A on the
+// preview). Its own A button is then switched off: pressing A while the ghost robot was building used to
+// send the half-moved bricks as a new wall (bricks ended up floating and tilted, 21 Oct).
+// Without WallBuilder (hand-placed bricks): A sends every brick that is no longer in its tray pocket.
 // No headset? In Play mode press S on the keyboard, or right-click the component > Send now.
 //
 // Adds ITSELF to the scene at startup: no scene edit needed (no SampleScene merge conflicts).
@@ -77,7 +78,20 @@ public class BrickSender : MonoBehaviour
         starts.Sort((a, b) => string.CompareOrdinal(a.t.name, b.t.name));
 
         udp = new UdpClient { EnableBroadcast = true };
+        wall = FindAnyObjectByType<WallBuilder>();
+        if (wall != null) wall.Confirmed += OnConfirmed;
         Debug.Log($"PicoBricks: BrickSender ready, {starts.Count} bricks, target {laptopIp}:{port}");
+    }
+
+    WallBuilder wall;
+
+    void OnConfirmed()
+    {
+        int n = Send();
+        var right = InputDevices.GetDeviceAtXRNode(XRNode.RightHand);
+        if (!right.isValid) return;
+        if (n > 0) right.SendHapticImpulse(0, 0.6f, 0.15f);      // short buzz = sent
+        else if (n < 0) right.SendHapticImpulse(0, 1f, 0.6f);    // long buzz = failed
     }
 
     void Update()
@@ -85,6 +99,7 @@ public class BrickSender : MonoBehaviour
 #if ENABLE_INPUT_SYSTEM
         if (Keyboard.current != null && Keyboard.current.sKey.wasPressedThisFrame) SendNow();
 #endif
+        if (wall != null) return; // the wall builder decides when to send (Confirmed)
         var right = InputDevices.GetDeviceAtXRNode(XRNode.RightHand);
         if (!right.isValid) return;
         right.TryGetFeatureValue(UnityEngine.XR.CommonUsages.primaryButton, out bool aDown); // A
@@ -166,7 +181,11 @@ public class BrickSender : MonoBehaviour
         }
     }
 
-    void OnDestroy() => udp?.Close();
+    void OnDestroy()
+    {
+        if (wall != null) wall.Confirmed -= OnConfirmed;
+        udp?.Close();
+    }
 
     /// <summary>Where this brick waits in the tray right now (world space). Used by GhostPlayer.</summary>
     public bool TryGetPickPose(string brickName, out Vector3 pos, out Quaternion rot)

@@ -22,7 +22,8 @@ Part of the Creative Robotics group project (TU Delft, ARIT1507, Oct 2026).
 - **Calibrate** the virtual table onto the real table by touching **2 points**: the table's **front-right corner** (next to the robot) and any point further left on the **front edge**. The table always gets the real **LAMA table size** (143 × 61 cm), anchored at that corner, so you can also test on a smaller table at home. (Scenes without the ghost robot use the older 4-point calibration that measures the table.)
 - **Draw a curve** (or a straight line) on the table with the controller's laser. The bricks **mimic the curve**: it is scaled to the wall length, the bricks follow it in 10 cm steps and **always touch at one corner** (the one on the inside of each bend). The wall grows or shrinks around the middle of your curve; if it pokes out of the black outline, it is slid to the nearest spot where it fits (same shape). Logic explained in the DEVLOG.
 - **Choose the number of layers (1–3).** With 6 bricks: 1 layer = 6 bricks long (60 cm), 2 layers = 3 × 2 (30 cm), 3 layers = 2 × 3 (20 cm).
-- Press **OK (A)** and the bricks build the wall: lying flat, along the curve, stacked straight up. Only if the shape fits nowhere are you asked to draw again.
+- As soon as you stop drawing, the bricks **show the wall as a preview**: lying flat, along the curve, stacked straight up. Change the layers and the preview updates. Only if the shape fits nowhere are you asked to draw again.
+- Happy with it? Press **A**: only then does the wall go to the robot (the ghost UR5 builds it first).
 - Every built wall is saved as a **brick list for the robot** (`wall_plan.json` on the headset: build order, layer, position and angle of each brick in table coordinates).
 - A see-through **ghost UR5** stands on the table where the real robot is (LAMA table, user at the long side, robot on the right; models from HANDZONe). You draw inside the **black outline**: every part of the table the robot can reach (20–75 cm from its base), minus the tray.
 - **The ghost robot builds your wall first:** after **A**, the laptop (`robot-bridge`, menu 3) works out every robot movement and sends it back; the ghost picks the bricks from the tray and builds the wall, exactly as the real robot will.
@@ -35,7 +36,7 @@ Part of the Creative Robotics group project (TU Delft, ARIT1507, Oct 2026).
 | **B** (right controller) | Start table calibration |
 | **Trigger** (right controller) | During calibration: record a point (front-right corner, then a point further left on the front edge). Otherwise: **point at the table and hold to draw the wall curve**; press again to draw a new wall |
 | **Thumbstick left/right** (right) | Number of layers (1–3) |
-| **A** (right controller) | OK: build the wall |
+| **A** (right controller) | Happy with the previewed wall: send it to the robot |
 | **X** (left controller) | Put all bricks back in the tray |
 | **Y** (left controller) | Switch passthrough ↔ VR (re-calibrate afterwards) |
 | **Grip** | Grab a loose brick (bricks in a built wall can't be grabbed) |

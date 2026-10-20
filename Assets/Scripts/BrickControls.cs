@@ -43,11 +43,15 @@ public class BrickControls : MonoBehaviour
     /// <summary>Raised after X (or a calibration) put all bricks back on their start spots.</summary>
     public event System.Action BricksReset;
 
-    public void ResetBricks()
+    public void ResetBricks() => ResetBricks(true);
+
+    /// <summary>notify = false: just put them back, without telling the wall builder to start over
+    /// (used when the wall preview changes or doesn't fit).</summary>
+    public void ResetBricks(bool notify)
     {
         foreach (var pose in startPoses) PutBack(pose);
         Debug.Log("PicoBricks: bricks reset");
-        BricksReset?.Invoke();
+        if (notify) BricksReset?.Invoke();
     }
 
     // Safety net: a brick that falls far below the table goes back to its start spot

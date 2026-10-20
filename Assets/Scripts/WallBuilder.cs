@@ -10,7 +10,8 @@ using UnityEngine.XR.Interaction.Toolkit.Interactables;
 //
 // Right controller:  point at the table + hold TRIGGER = draw the curve
 //                    THUMBSTICK left/right            = number of layers (1-3)
-//                    A                                = OK, build the wall
+//                    (the bricks show the wall right away, as a preview)
+//                    A                                = happy with it: send it to the robot (only now)
 //
 // How a curve becomes bricks (see docs/DEVLOG.md, "curve logic"):
 //  1. record a point every ~1 cm while the trigger is held
@@ -55,8 +56,14 @@ public class WallBuilder : MonoBehaviour
     [Tooltip("How many times the curve is smoothed (0 = use it exactly as drawn)")]
     public int smoothingPasses = 3;
 
-    enum Step { Draw, Drawing, ChooseLayers, Built }
+    // Preview: the bricks stand where the wall will be, layers can still change. Sent: confirmed with A, the
+    // wall went to the robot (the ghost UR5 builds it). Nothing goes to the robot before A in Preview.
+    enum Step { Draw, Drawing, Preview, Sent }
     Step step = Step.Draw;
+
+    /// <summary>Raised when the user confirms the previewed wall with A: BrickSender then sends it to the robot.</summary>
+    public event System.Action Confirmed;
+    List<BrickPose> previewPlan;   // the wall now shown, null if it doesn't fit
 
     readonly List<Vector3> curve = new List<Vector3>();   // table space, y = 0
     int layers = 1;
@@ -125,20 +132,22 @@ public class WallBuilder : MonoBehaviour
         switch (step)
         {
             case Step.Draw:
-            case Step.ChooseLayers:
-            case Step.Built:
+            case Step.Preview:
+            case Step.Sent:
                 if (triggerPressed && PointOnTable(out var first))
                 {
-                    if (step == Step.Built && controls != null) controls.ResetBricks(); // bricks back into the tray
+                    // bricks back into the tray; after sending also tell the ghost robot to stop (BricksReset)
+                    if (controls != null && step == Step.Sent) controls.ResetBricks();
+                    else if (controls != null && step == Step.Preview) controls.ResetBricks(false);
                     curve.Clear();
                     curve.Add(first);
                     step = Step.Drawing;
                     Say("Drawing... release the trigger at the end of the wall");
                 }
-                else if (step == Step.ChooseLayers)
+                else if (step == Step.Preview)
                 {
                     ChooseLayers(stick);
-                    if (aPressed) Build();
+                    if (aPressed && previewPlan != null) Confirm();
                 }
                 break;
 
@@ -180,8 +189,8 @@ public class WallBuilder : MonoBehaviour
         }
         Smooth(curve, smoothingPasses);
         ShowCurve(curve);
-        step = Step.ChooseLayers;
-        ShowLayerChoice();
+        step = Step.Preview;
+        ShowWall();
     }
 
     // ---------- layers ----------
@@ -191,18 +200,11 @@ public class WallBuilder : MonoBehaviour
         bool pushed = Mathf.Abs(stick.x) > 0.6f;
         if (pushed && !stickWasPushed)
         {
+            int before = layers;
             layers = Mathf.Clamp(layers + (stick.x > 0 ? 1 : -1), 1, maxLayers);
-            ShowLayerChoice();
+            if (layers != before) ShowWall();
         }
         stickWasPushed = pushed;
-    }
-
-    void ShowLayerChoice()
-    {
-        int perLayer = BrickCount / layers;
-        Say($"Layers:  <  {layers}  >   (thumbstick left/right)\n" +
-            $"{perLayer} bricks along your curve x {layers} high\n" +
-            "A = OK      TRIGGER = draw again");
     }
 
     // ---------- building ----------
@@ -216,13 +218,20 @@ public class WallBuilder : MonoBehaviour
         public Vector3[] footprint; // 4 corners on the table, for the fit check
     }
 
-    void Build()
+    // Preview: put the bricks where the wall will be, right after drawing and whenever the layers change.
+    // Nothing is sent to the robot yet.
+    void ShowWall()
     {
+        if (controls != null) controls.ResetBricks(false); // start from the tray (a previous preview may differ)
+        int perLayer = BrickCount / layers;
+        string layerLine = $"Layers:  <  {layers}  >   ({perLayer} bricks x {layers} high, thumbstick left/right)";
         var plan = PlanRectangle(layers, out var wallCurve);
         if (!FitIntoArea(plan, wallCurve, out float movedCm))
         {
-            Say($"A {BrickCount / layers}-brick wall in that shape doesn't fit in the black area anywhere.\n" +
-                "Draw a tighter curve, or choose more layers (shorter wall)");
+            previewPlan = null;
+            ShowCurve(curve);
+            Say($"{layerLine}\nThis shape doesn't fit in the black area anywhere:\n" +
+                "draw a tighter curve (TRIGGER), or choose more layers");
             return;
         }
 
@@ -242,11 +251,19 @@ public class WallBuilder : MonoBehaviour
         }
 
         ShowCurve(wallCurve); // the curve at wall size, as the bricks follow it
-        step = Step.Built;
+        previewPlan = plan;
+        string moved = movedCm >= 0.5f ? $"\n(moved {movedCm:F0} cm to fit the robot's area)" : "";
+        Say($"{layerLine}{moved}\nHappy with this wall?   A = build it with the robot      TRIGGER = draw again");
+    }
+
+    // A on the preview: the wall is final, send it to the robot (BrickSender listens to Confirmed)
+    void Confirm()
+    {
+        step = Step.Sent;
         int perLayer = BrickCount / layers;
-        string moved = movedCm >= 0.5f ? $"  (moved {movedCm:F0} cm to fit the robot's area)" : "";
-        Say($"Wall built: {perLayer} x {layers}{moved}\nTRIGGER = draw a new wall      X = bricks back");
-        SavePlan(plan, perLayer);
+        SavePlan(previewPlan, perLayer);
+        Say($"Wall {perLayer} x {layers} sent to the robot: watch the ghost robot build it\nTRIGGER = draw a new wall      X = bricks back");
+        Confirmed?.Invoke();
     }
 
     // Rectangle: every layer has the same chain of bricks along the curve, stacked straight up.

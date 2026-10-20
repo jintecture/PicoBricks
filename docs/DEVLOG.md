@@ -383,6 +383,11 @@ What **PicoBricks → Setup Brick Scene** now does:
 - *Still refused:* the old 44 × 27 cm rectangle was still stored in the scene. The setup had stopped writing it, but never cleared it, and Unity keeps the old value of a reused component. Fixed: the setup now clears it explicitly. (The bigger area from 20 Oct had never actually been active.)
 - *Overlapping bricks* on S-curves and sharp bends (screenshot: a 6 × 1 S-curve with bricks cutting through each other). The hinge corner was chosen by a simple rule, and nothing checked the result. Now both hinge corners are tried for every brick, each candidate is checked against all bricks laid so far (separating-axis test; touching is allowed), and the one that lands closest to the curve wins. If none fits, the bend is too sharp for 10 cm bricks and is straightened step by step. Tested outside Unity (Python copy of the logic) on 12 curve types × 1–3 layers × both wall sides: **0 overlaps**, neighbouring bricks always touch.
 
+**Confirm before the robot builds (21 Oct, Jin):** "the robot starts building immediately after I've drawn the line, I can't even see the preview of the bricks; pressing a button to start building would be nice." Also: bricks "not on the same plane" (floating, tilted). Cause of the second one: A was read by two scripts. `WallBuilder` (A = build) and `BrickSender` (**every** A = send the current brick positions). Pressing A while the ghost was building sent the half-moved bricks (some in the tray, one tilted in the gripper) as a new wall, and the ghost then placed bricks there. New flow:
+- Release the trigger → the bricks **immediately stand where the wall will be** (preview). The thumbstick changes the layers and the preview updates live. TRIGGER = draw again.
+- **A = "happy with it"**: only now the wall is saved and sent to the robot (`WallBuilder.Confirmed` → `BrickSender`). `BrickSender` no longer listens to A itself when there is a wall builder.
+- After sending, A does nothing; TRIGGER starts a new wall (and stops the ghost), X puts the bricks back.
+
 Parjanya's bridge stays (Wi-Fi link, table frame, calibration, URScript to the real robot). Only the "ask RoboDK" step is replaced for the preview. **Parjanya Singh and Matthias Nahum should know**, because it affects the robot-route decision.
 
 ---
