@@ -374,6 +374,11 @@ What **PicoBricks → Setup Brick Scene** now does:
 
 **2-point calibration for the LAMA table (20 Oct, Jin's idea):** Jin has no access to the LAMA table right now and tests on a home table of a different size. Idea: calibrate from one corner and give the table the real size of the table we'll use. Done, with one addition: one point gives the position but not the direction, so it's **2 points**: (1) the **front-right corner** (next to the robot: anchoring there keeps robot, tray and drawing area exactly where they will be), (2) **any point further left on the front edge** (direction; the further, the more accurate). The table gets the LAMA size measured from the model (143 × 61 cm, 91 cm high); no floor point needed. On with the ghost robot (`TableCalibration.fixedSize`); without it, the 4-point calibration that measures the table is still there. At home the virtual LAMA table sticks out past the left end of the desk, which doesn't matter: everything used is near the robot.
 
+**"The bricks can't fit" all the time (20 Oct, Jin), especially with 1 layer:** a 1-layer wall is 60 cm of bricks, the black area was only 44 × 27 cm, and the curve grew from its start point, so it ran off the area. Three fixes:
+1. **Real reach instead of a guess:** the UR5 maths (`ur5_kinematics.py`) says the robot reaches **11–81 cm** from its base with the gripper pointing down (checked at grasp and travel heights, 4 gripper angles). Walls may now go **20–75 cm** from the base (safety margin both ends), anywhere on the table, minus the tray. The black line follows that real shape (traced on a 1 cm grid). Area **0.33 m²**, was 0.12 m².
+2. **The wall slides into place instead of being refused:** if it pokes out, it is moved (same shape and direction) to the nearest spot where it fits, up to 40 cm, and the message says how far ("moved 12 cm to fit the robot's area"). Only refused if it fits nowhere.
+3. **The wall grows around the middle of the drawn curve** instead of from its start point, so it lands where it was drawn.
+
 Parjanya's bridge stays (Wi-Fi link, table frame, calibration, URScript to the real robot). Only the "ask RoboDK" step is replaced for the preview. **Parjanya Singh and Matthias Nahum should know**, because it affects the robot-route decision.
 
 ---

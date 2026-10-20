@@ -38,7 +38,7 @@ public class WallBuilder : MonoBehaviour
     [Tooltip("Ghost UR5: walls it can't reach are refused (safety check on top of the drawing area)")]
     public GhostRobot robot;
     [Tooltip("Where the user may draw, table frame (m): x = left..right, y = front..back (= table z). " +
-             "Set by the scene setup to the reachable part in front of the tray. Empty = whole table minus margin")]
+             "Empty (the default) = whole table minus margin; with the ghost robot, Allowed() also cuts out the tray and what the robot can't reach")]
     public Rect drawArea;
 
     [Header("Bricks")]
@@ -64,7 +64,6 @@ public class WallBuilder : MonoBehaviour
 
     readonly List<Rigidbody> bricks = new List<Rigidbody>();
     LineRenderer line, zone;
-    string misfit; // why the last plan was refused
     TextMesh label;
 
     int BrickCount => bricks.Count;
@@ -220,10 +219,10 @@ public class WallBuilder : MonoBehaviour
     void Build()
     {
         var plan = PlanRectangle(layers, out var wallCurve);
-        if (plan == null)
+        if (!FitIntoArea(plan, wallCurve, out float movedCm))
         {
-            Say($"A {BrickCount / layers}-brick wall along that curve {misfit}.\n" +
-                "Draw again (TRIGGER) or choose more layers (shorter wall)");
+            Say($"A {BrickCount / layers}-brick wall in that shape doesn't fit in the black area anywhere.\n" +
+                "Draw a tighter curve, or choose more layers (shorter wall)");
             return;
         }
 
@@ -245,21 +244,26 @@ public class WallBuilder : MonoBehaviour
         ShowCurve(wallCurve); // the curve at wall size, as the bricks follow it
         step = Step.Built;
         int perLayer = BrickCount / layers;
-        Say($"Wall built: {perLayer} x {layers}\nTRIGGER = draw a new wall      X = bricks back");
+        string moved = movedCm >= 0.5f ? $"  (moved {movedCm:F0} cm to fit the robot's area)" : "";
+        Say($"Wall built: {perLayer} x {layers}{moved}\nTRIGGER = draw a new wall      X = bricks back");
         SavePlan(plan, perLayer);
     }
 
     // Rectangle: every layer has the same chain of bricks along the curve, stacked straight up.
-    // Returns null if the wall would stick out of the build area.
+    // (Whether it fits is checked afterwards, in FitIntoArea.)
     List<BrickPose> PlanRectangle(int layerCount, out List<Vector3> wallCurve)
     {
         int perLayer = BrickCount / layerCount;
         float L = brickSize.z, W = brickSize.x;
 
-        // 3. scale the drawn curve about its start so its length = one layer of bricks
+        // 3. scale the drawn curve about its middle so its length = one layer of bricks: the wall grows or
+        //    shrinks around where you drew it (it used to grow from the start point and run off the area)
         wallCurve = new List<Vector3>(curve.Count);
         float scale = perLayer * L / Length(curve);
-        foreach (var p in curve) wallCurve.Add(curve[0] + (p - curve[0]) * scale);
+        Vector3 mid = Vector3.zero;
+        foreach (var p in curve) mid += p;
+        mid /= curve.Count;
+        foreach (var p in curve) wallCurve.Add(mid + (p - mid) * scale);
 
         // 4. first brick: from the start, step one brick length along the curve ("dividers")
         int progress = 0;
@@ -312,8 +316,6 @@ public class WallBuilder : MonoBehaviour
             chain.Add((start, d));
         }
 
-        GetBuildArea(out float minX, out float maxX, out float minZ, out float maxZ);
-        const float tol = 0.001f;
         var plan = new List<BrickPose>();
         for (int layer = 0; layer < layerCount; layer++)
             for (int i = 0; i < perLayer; i++)
@@ -322,13 +324,6 @@ public class WallBuilder : MonoBehaviour
                 Vector3 side = Side(d);
                 Vector3 centre = start + d * (L / 2f) + side * (W / 2f);
                 var corners = new[] { start, start + d * L, start + d * L + side * W, start + side * W };
-                foreach (var c in corners)
-                {
-                    if (c.x < minX - tol || c.x > maxX + tol || c.z < minZ - tol || c.z > maxZ + tol)
-                    { misfit = "doesn't fit on the table"; return null; }
-                    if (OnTray(c)) { misfit = "would land on the pickup tray"; return null; }
-                    if (robot != null && !robot.InReach(c)) { misfit = "is out of the robot's reach"; return null; }
-                }
                 centre.y = brickSize.y * (layer + 0.5f) + 0.0005f;
                 var rotation = Quaternion.LookRotation(d, Vector3.up); // brick length (local z) along d
                 plan.Add(new BrickPose
@@ -435,6 +430,123 @@ public class WallBuilder : MonoBehaviour
         maxZ = table.localScale.z - edgeMargin;
     }
 
+    // ---------- fitting the wall into the area ----------
+
+    const float FitStep = 0.01f;   // try shifts in 1 cm steps
+    const float FitSearch = 0.40f; // up to 40 cm in each direction
+
+    // Can a brick touch the table here? On the table (minus margin), not on the tray, within the robot's reach.
+    bool Allowed(Vector3 p)
+    {
+        GetBuildArea(out float minX, out float maxX, out float minZ, out float maxZ);
+        if (p.x < minX || p.x > maxX || p.z < minZ || p.z > maxZ) return false;
+        if (OnTray(p)) return false;
+        return robot == null || robot.InReach(p);
+    }
+
+    // If the wall pokes out of the area, slide it (same shape, same direction) to the nearest spot where it fits.
+    // Returns false if it fits nowhere. movedCm = how far it was moved.
+    bool FitIntoArea(List<BrickPose> plan, List<Vector3> wallCurve, out float movedCm)
+    {
+        movedCm = 0f;
+        // Test points: every corner, edge middle and centre of the bottom layer (the layers above stand on it)
+        var pts = new List<Vector3>();
+        foreach (var b in plan)
+        {
+            if (b.layer != 0) continue;
+            var f = b.footprint;
+            for (int k = 0; k < 4; k++)
+            {
+                pts.Add(f[k]);
+                pts.Add((f[k] + f[(k + 1) % 4]) / 2f);
+            }
+            pts.Add((f[0] + f[2]) / 2f);
+        }
+
+        int n = Mathf.RoundToInt(FitSearch / FitStep);
+        bool found = false;
+        Vector3 best = Vector3.zero;
+        float bestDist = float.MaxValue;
+        for (int i = -n; i <= n; i++)
+            for (int j = -n; j <= n; j++)
+            {
+                var shift = new Vector3(i * FitStep, 0f, j * FitStep);
+                float dist = shift.sqrMagnitude;
+                if (dist >= bestDist) continue;
+                bool ok = true;
+                foreach (var p in pts)
+                    if (!Allowed(p + shift)) { ok = false; break; }
+                if (!ok) continue;
+                found = true;
+                best = shift;
+                bestDist = dist;
+            }
+        if (!found) return false;
+
+        for (int k = 0; k < plan.Count; k++)
+        {
+            var b = plan[k];
+            b.position += best;
+            for (int c = 0; c < 4; c++) b.footprint[c] += best;
+            plan[k] = b;
+        }
+        for (int k = 0; k < wallCurve.Count; k++) wallCurve[k] += best;
+        movedCm = best.magnitude * 100f;
+        return true;
+    }
+
+    // Black outline of where a wall can go (the real shape: table within the robot's reach, minus the tray and
+    // the space right around the robot), as a flat mesh on the table. Traced on a 1 cm grid.
+    Mesh outlineMesh;
+    void DrawAreaOutline()
+    {
+        if (outlineMesh == null)
+        {
+            var go = new GameObject("Build Area Outline");
+            go.transform.SetParent(workspace, false);
+            outlineMesh = new Mesh { name = "Build Area Outline", indexFormat = UnityEngine.Rendering.IndexFormat.UInt32 };
+            go.AddComponent<MeshFilter>().sharedMesh = outlineMesh;
+            var mr = go.AddComponent<MeshRenderer>();
+            mr.sharedMaterial = zoneMaterial != null ? zoneMaterial : lineMaterial;
+            mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        }
+
+        const float cell = 0.01f, thick = 0.005f, y = 0.002f;
+        GetBuildArea(out float minX, out float maxX, out float minZ, out float maxZ);
+        int nx = Mathf.CeilToInt((maxX - minX) / cell), nz = Mathf.CeilToInt((maxZ - minZ) / cell);
+        var grid = new bool[nx, nz];
+        for (int i = 0; i < nx; i++)
+            for (int j = 0; j < nz; j++)
+                grid[i, j] = Allowed(new Vector3(minX + (i + 0.5f) * cell, 0f, minZ + (j + 0.5f) * cell));
+        bool In(int i, int j) => i >= 0 && j >= 0 && i < nx && j < nz && grid[i, j];
+
+        var verts = new List<Vector3>();
+        var tris = new List<int>();
+        void Segment(Vector3 a, Vector3 b)
+        {
+            Vector3 d = (b - a).normalized, s = Vector3.Cross(Vector3.up, d) * (thick / 2f);
+            a -= d * (thick / 2f);
+            b += d * (thick / 2f);
+            int k = verts.Count;
+            verts.Add(a - s); verts.Add(a + s); verts.Add(b + s); verts.Add(b - s);
+            tris.AddRange(new[] { k, k + 1, k + 2, k, k + 2, k + 3, k, k + 2, k + 1, k, k + 3, k + 2 }); // both sides
+        }
+        for (int i = 0; i < nx; i++)
+            for (int j = 0; j < nz; j++)
+            {
+                if (!grid[i, j]) continue;
+                float x0 = minX + i * cell, x1 = x0 + cell, z0 = minZ + j * cell, z1 = z0 + cell;
+                if (!In(i - 1, j)) Segment(new Vector3(x0, y, z0), new Vector3(x0, y, z1));
+                if (!In(i + 1, j)) Segment(new Vector3(x1, y, z0), new Vector3(x1, y, z1));
+                if (!In(i, j - 1)) Segment(new Vector3(x0, y, z0), new Vector3(x1, y, z0));
+                if (!In(i, j + 1)) Segment(new Vector3(x0, y, z1), new Vector3(x1, y, z1));
+            }
+        outlineMesh.Clear();
+        outlineMesh.SetVertices(verts);
+        outlineMesh.SetTriangles(tris, 0);
+        outlineMesh.RecalculateBounds();
+    }
+
     // Is this table point on (or too close to) the pickup tray?
     bool OnTray(Vector3 p)
     {
@@ -446,6 +558,12 @@ public class WallBuilder : MonoBehaviour
 
     void DrawBuildArea()
     {
+        if (robot != null)
+        {
+            zone.positionCount = 0;
+            DrawAreaOutline();
+            return;
+        }
         GetBuildArea(out float minX, out float maxX, out float minZ, out float maxZ);
         float y = 0.002f;
         zone.positionCount = 4;

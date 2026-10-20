@@ -20,10 +20,10 @@ public class GhostRobot : MonoBehaviour
 
     [Header("Robot base in the table frame (Workspace): x right, y up, z away from the front edge, m")]
     public Vector3 baseInWorkspace;
-    [Tooltip("Furthest a brick may be from the base, measured on the table (m). UR5 = 0.85, less pointing down")]
-    public float maxReach = 0.70f;
+    [Tooltip("Furthest a brick may be from the base, measured on the table (m). UR5 maths: 0.81 with the gripper pointing down")]
+    public float maxReach = 0.75f;
     [Tooltip("Closest a brick may be to the base (m): the robot can't reach right next to itself")]
-    public float minReach = 0.18f;
+    public float minReach = 0.20f;
 
     [Tooltip("Joint angles (degrees) shown at start: a tool-down pose above the table")]
     public float[] homeDegrees = { 0f, -90f, -90f, -90f, 90f, 0f };

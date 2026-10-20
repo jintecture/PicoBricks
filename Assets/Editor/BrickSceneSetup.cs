@@ -41,9 +41,9 @@ public static class BrickSceneSetup
     const float TrayRightEdgeFromRobot = 0.16f;
     const float EdgeMargin = 0.03f;
     static readonly Vector2 TraySize = new Vector2(0.229f, 0.250f);
-    // Drawing area (black outline): in front of the tray, from the user's edge back; its right edge this far left of
-    // the robot base, its left edge where the robot's reach ends
-    const float DrawAreaFromRobot = 0.20f;
+    // Robot reach for walls, measured on the table from the base (m). The UR5 maths says 0.11-0.81 with the gripper
+    // pointing down; inside 20 cm the robot's own base is in the way, beyond 75 cm the arm is nearly stretched out
+    const float MinReach = 0.20f, MaxReach = 0.75f;
 
     // Same as the menu, without opening the Unity window:
     // Unity.exe -batchmode -quit -projectPath <PicoBricks> -executeMethod BrickSceneSetup.SetupFromCommandLine
@@ -115,7 +115,6 @@ public static class BrickSceneSetup
         var ghostMat = GetOrCreateTransparentMaterial("Assets/Materials/GhostRobot.mat", GhostColour);
         var ghost = PlaceGhostRobot(workspace.transform, ghostMat);
         Vector2 trayOffset = Vector2.zero;
-        Rect drawArea = default;
         if (ghost != null)
         {
             table.transform.localScale = new Vector3(ghost.Width, ghost.Height, ghost.Depth);
@@ -129,17 +128,13 @@ public static class BrickSceneSetup
             float trayFront = ghost.Depth - EdgeMargin - TraySize.y;
             // measured from the middle of the front edge, like the robot (TableCalibration.trayFromOrigin)
             trayOffset = new Vector2(trayLeft, trayFront);
-
-            // Drawing area: from the front edge to just before the tray; left edge where every point is still
-            // within the robot's reach
-            float front = EdgeMargin, back = trayFront - EdgeMargin;
-            float dz = Mathf.Max(Mathf.Abs(front - robotBase.z), Mathf.Abs(back - robotBase.z));
-            float reachX = Mathf.Sqrt(ghost.Component.maxReach * ghost.Component.maxReach - dz * dz);
-            float left = Mathf.Max(-ghost.Width / 2f + EdgeMargin, robotBase.x - reachX);
-            float right = robotBase.x - DrawAreaFromRobot;
-            drawArea = Rect.MinMaxRect(left, front, right, back);
-            Debug.Log($"PicoBricks: tray at x {trayLeft:F3}, z {trayFront:F3}; drawing area x {left:F3}..{right:F3}, " +
-                      $"z {front:F3}..{back:F3} ({drawArea.width * 100f:F0} x {drawArea.height * 100f:F0} cm)");
+            // Where walls may go = the whole table within the robot's reach, minus the tray (WallBuilder.Allowed,
+            // outlined in black in the headset). Reach worked out with robot-bridge/ur5_kinematics.py: gripper
+            // pointing down, 11-81 cm from the base; with a safety margin:
+            ghost.Component.minReach = MinReach;
+            ghost.Component.maxReach = MaxReach;
+            Debug.Log($"PicoBricks: tray at x {trayLeft:F3}, z {trayFront:F3}; walls {MinReach * 100f:F0}-" +
+                      $"{MaxReach * 100f:F0} cm from the robot");
         }
 
         // The printed pickup tray (TableCalibration keeps it at trayOffset from the table's front-left corner).
@@ -245,7 +240,6 @@ public static class BrickSceneSetup
             {
                 ghost.Component.passthrough = passthrough;
                 wall.robot = ghost.Component;
-                wall.drawArea = drawArea;
                 wall.zoneMaterial = GetOrCreateMaterial("Assets/Materials/DrawArea.mat", Color.black, unlit: true);
             }
         }
