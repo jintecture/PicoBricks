@@ -48,13 +48,13 @@ PREVIEW_PORT = 5006     # the headset listens here for the robot movements (ghos
 PREVIEW_STEPS = 4       # straight (MoveL) moves are sent as this many in-between poses
 
 # Gripper (soft/parallel gripper picking the brick from the top)
-GRIP_DO = 0             # digital output that closes the gripper (find it with menu 7, the gripper test)
+GRIP_DO = 4             # digital output 4 closes the LAMA gripper, off opens it (pendant I/O tab, 21 Oct)
 GRIP_ON_TOOL = False    # True if the gripper is wired to the TOOL outputs at the flange, not the control box
 GRIP_CLOSE_VALUE = 1    # value that CLOSES it (flip to 0 if yours is the other way round)
 GRIP_WAIT_S = 0.8       # time for the gripper to close / open
 GRASP_DEPTH = 25.0      # mm: how far below the brick's top face the TCP goes (0 = suction on top)
 TOOL_YAW_OFFSET = 0.0   # deg: add 90 if the fingers close along the brick's length instead of across it
-TOOL_LENGTH = 150.0     # mm from the flange (round end plate) to the fingertips: MEASURE IT with a tape at the robot
+TOOL_LENGTH = 151.0     # mm flange -> fingertips: the TCP set on the LAMA pendant (menu c, 21 Oct)
 
 BRICK_W, BRICK_L, BRICK_H = 50.0, 100.0, 50.0   # mm
 APPROACH = 80.0         # mm: go straight down/up this last bit with MoveL
