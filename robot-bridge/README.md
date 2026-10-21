@@ -23,9 +23,9 @@ Have someone who knows the robot and its **emergency stop** there for every real
 
 **0. Measure (tape measure):**
 - the gripper, from the flange (round end plate) to the fingertips → `TOOL_LENGTH` at the top of `picobricks_bridge.py` (now 150 mm);
-- where the robot stands: its base centre should be about **24 cm from the table's right end** and **31 cm from the front edge** (that's where the ghost stands). If it's very different, tell Claude.
+- where the robot stands: its base centre is **25 cm from the table's right end** and **30 cm from the front edge** (measured 21 Oct; table 1348 × 600 mm). If it moves, change `RobotFromRightEnd` / `RobotFromFrontEdge` in `BrickSceneSetup.cs`.
 
-**1. Tray:** tape it in the back corner beside the robot, as in the headset: its **right edge 16 cm left of the robot base centre** (≈ 40 cm from the table's right end), its **back edge 3 cm from the table's back edge**. Pocket 1 at the front-left.
+**1. Tray:** tape it in the back corner beside the robot, as in the headset: **440 mm from the table's right end** to the tray's right edge and **320 mm from the front edge** to the tray's front edge (≈ 30 mm from the back edge, 19 cm left of the robot centre). Pocket 1 at the front-left.
 
 **2. Network:**
 - Laptop ↔ robot: Ethernet cable. Robot IP: pendant → *Setup Robot → Network* (default here 192.168.1.198; another one? add `--ip x.x.x.x`). Laptop: Windows network settings → Ethernet → IP manually `192.168.1.100`, mask `255.255.255.0`.

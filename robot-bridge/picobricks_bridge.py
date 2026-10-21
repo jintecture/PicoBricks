@@ -42,7 +42,7 @@ CALIB_FILE = os.path.join(HERE, "calib.json")
 # ======================= settings you may want to change =======================
 ROBOT_IP = "192.168.1.198"   # check on the pendant: Setup Robot > Network (or use --ip)
 ROBOT_STATE_PORT = 30003     # the robot streams its joints and position here (read only)
-LAMA_WIDTH = 1426.0          # mm, the LAMA table's front edge (measured from the HANDZONe model), as in the headset
+LAMA_WIDTH = 1348.0          # mm, the real LAMA table's front edge (tape, 21 Oct); = RealTableLength in BrickSceneSetup.cs
 UDP_PORT = 5005
 PREVIEW_PORT = 5006     # the headset listens here for the robot movements (ghost UR5 preview, GhostPlayer.cs)
 PREVIEW_STEPS = 4       # straight (MoveL) moves are sent as this many in-between poses

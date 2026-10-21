@@ -38,7 +38,13 @@ public static class BrickSceneSetup
     static readonly Color GhostColour = new Color(0.8f, 0.9f, 1f, 0.35f);  // pale blue, see-through
     // Pickup tray: in the back corner beside the robot (the real corners are taken by the robot's own base, the far
     // ones are out of reach). Its right edge this far left of the robot base centre, its back edge 3 cm from the back.
-    const float TrayRightEdgeFromRobot = 0.16f;
+    const float TrayRightEdgeFromRobot = 0.19f; // the real robot's base plate reaches ~15 cm from its centre (21 Oct)
+
+    // The REAL LAMA table and robot, measured with a tape (Jin, 21 Oct). The HANDZONe model differs slightly
+    // (1426 x 611 mm, robot centre 239 mm from the right end, 311 mm from the front edge); the ghost robot is moved
+    // to the real spot and the table gets the real size. Keep RealTableLength equal to TABLE_WIDTH in the bridge.
+    const float RealTableLength = 1.348f, RealTableDepth = 0.600f;
+    const float RobotFromRightEnd = 0.250f, RobotFromFrontEdge = 0.300f;
     const float EdgeMargin = 0.03f;
     static readonly Vector2 TraySize = new Vector2(0.229f, 0.250f);
     // Robot reach for walls, measured on the table from the base (m). The UR5 maths says 0.11-0.81 with the gripper
@@ -114,6 +120,19 @@ public static class BrickSceneSetup
         // stands at, robot at the right-hand end). Its real size replaces the default grey table's size.
         var ghostMat = GetOrCreateTransparentMaterial("Assets/Materials/GhostRobot.mat", GhostColour);
         var ghost = PlaceGhostRobot(workspace.transform, ghostMat);
+        if (ghost != null)
+        {
+            // Move the ghost robot to where the real robot stands on the real table, and use the real table size
+            var want = new Vector3(RealTableLength / 2f - RobotFromRightEnd, 0f, RobotFromFrontEdge);
+            var have = ghost.Component.baseInWorkspace;
+            var shift = new Vector3(want.x - have.x, 0f, want.z - have.z);
+            ghost.Component.transform.localPosition += shift;
+            ghost.Component.baseInWorkspace += shift;
+            ghost.Width = RealTableLength;
+            ghost.Depth = RealTableDepth;
+            Debug.Log($"PicoBricks: real table {RealTableLength * 1000f:F0} x {RealTableDepth * 1000f:F0} mm; ghost robot moved " +
+                      $"{shift.x * 1000f:F0}, {shift.z * 1000f:F0} mm to the real robot's spot");
+        }
         Vector2 trayOffset = Vector2.zero;
         if (ghost != null)
         {
