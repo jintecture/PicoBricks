@@ -219,6 +219,7 @@ public static class BrickSceneSetup
             calibration.rightController = FindChild(rig.transform, "Right Controller");
             calibration.bricks = controls;
             calibration.passthrough = passthrough;
+            calibration.tipMaterial = GetOrCreateMaterial("Assets/Materials/CalibrationTip.mat", new Color(1f, 0.45f, 0f), unlit: true);
             if (calibration.rightController == null)
                 Debug.LogWarning("PicoBricks: 'Right Controller' not found in the rig, table calibration won't work");
 

@@ -44,8 +44,8 @@ public class TableCalibration : MonoBehaviour
 
     static readonly string[] FixedPrompts =
     {
-        "1/2  Touch the FRONT-RIGHT corner\n(next to the robot), pull trigger",
-        "2/2  Touch the FRONT EDGE further LEFT\n(any point, the further the better), pull trigger",
+        "1/2  Put the ORANGE BALL on the FRONT-RIGHT corner\n(next to the robot), half sunk into the table, pull trigger",
+        "2/2  Put the ORANGE BALL on the FRONT EDGE further LEFT\n(as far as you can), half sunk into the table, pull trigger",
     };
 
     string[] CurrentPrompts => fixedSize ? FixedPrompts : Prompts;
@@ -60,18 +60,30 @@ public class TableCalibration : MonoBehaviour
     /// <summary>Raised after the table has been placed on the real table.</summary>
     public event System.Action Placed;
 
+    [Tooltip("Bright unlit material for the measuring ball and its line (easy to see in passthrough)")]
+    public Material tipMaterial;
+
     Transform tip;
+    LineRenderer tipLine;
     TextMesh label;
 
     Vector3 TipPosition => rightController.position + rightController.forward * tipOffset;
 
     void Start()
     {
-        // Small white ball that shows exactly which point gets measured
+        // Orange ball that shows exactly which point gets measured (its centre), joined to the controller by a short
+        // line so it is easy to find. Only shown while calibrating. (The small white ball was hard to see, 21 Oct.)
         tip = GameObject.CreatePrimitive(PrimitiveType.Sphere).transform;
         tip.name = "Calibration Tip";
         Destroy(tip.GetComponent<Collider>());
-        tip.localScale = Vector3.one * 0.015f;
+        tip.localScale = Vector3.one * 0.02f;
+        if (tipMaterial != null) tip.GetComponent<Renderer>().sharedMaterial = tipMaterial;
+        tipLine = new GameObject("Calibration Tip Line").AddComponent<LineRenderer>();
+        tipLine.sharedMaterial = tipMaterial != null ? tipMaterial : tip.GetComponent<Renderer>().sharedMaterial;
+        tipLine.widthMultiplier = 0.003f;
+        tipLine.positionCount = 2;
+        tipLine.useWorldSpace = true;
+        tipLine.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
 
         var labelGo = new GameObject("Calibration Label");
         labelGo.transform.SetParent(rightController, false);
@@ -90,6 +102,10 @@ public class TableCalibration : MonoBehaviour
     {
         if (rightController == null) return;
         tip.position = TipPosition;
+        tip.gameObject.SetActive(IsCalibrating);
+        tipLine.enabled = IsCalibrating;
+        tipLine.SetPosition(0, rightController.position);
+        tipLine.SetPosition(1, TipPosition);
 
         // Keep the label readable: face the headset
         var cam = Camera.main;

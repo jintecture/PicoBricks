@@ -125,9 +125,11 @@ public class WallBuilder : MonoBehaviour
         if (calibration != null && calibration.IsCalibrating)
         {
             label.gameObject.SetActive(false);
+            ShowPointer(false);
             return;
         }
         label.gameObject.SetActive(true);
+        ShowPointer(true);
 
         switch (step)
         {
@@ -161,6 +163,34 @@ public class WallBuilder : MonoBehaviour
     }
 
     // ---------- drawing ----------
+
+    // Laser pointer: a thin line from the controller to where it points on the table, with a dot where the next curve
+    // point would go (inside the drawing area). Users didn't know where they were pointing (feedback, 21 Oct).
+    LineRenderer pointer;
+    Transform pointerDot;
+    void ShowPointer(bool show)
+    {
+        if (pointer == null)
+        {
+            pointer = MakeLine("Pointer", lineMaterial, 0.002f, false);
+            pointer.positionCount = 2;
+            pointerDot = GameObject.CreatePrimitive(PrimitiveType.Sphere).transform;
+            pointerDot.name = "Pointer Dot";
+            Destroy(pointerDot.GetComponent<Collider>());
+            pointerDot.localScale = Vector3.one * 0.012f;
+            pointerDot.GetComponent<Renderer>().sharedMaterial = lineMaterial;
+        }
+        var plane = new Plane(workspace.up, workspace.position);
+        var ray = new Ray(rightController.position, rightController.forward);
+        bool hits = show && plane.Raycast(ray, out float distance) && distance < 5f;
+        pointer.enabled = hits;
+        pointerDot.gameObject.SetActive(hits);
+        if (!hits) return;
+        pointer.SetPosition(0, rightController.position);
+        pointer.SetPosition(1, ray.GetPoint(distance));
+        if (PointOnTable(out var local))
+            pointerDot.position = workspace.TransformPoint(local + Vector3.up * 0.003f);
+    }
 
     // Where the controller's pointing ray hits the table top, clamped to the build area (table space)
     bool PointOnTable(out Vector3 local)

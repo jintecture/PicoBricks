@@ -397,6 +397,8 @@ What **PicoBricks → Setup Brick Scene** now does:
 - Unknown until the lab: the gripper's length (`TOOL_LENGTH`, assumed 150 mm), which output drives it, the robot's IP address.
 - Wi-Fi note: on eduroam the headset can't reach the laptop (device-to-device traffic is blocked); use the laptop's Mobile hotspot.
 
+**At the LAMA table (21 Oct):** ghost robot works over the laptop hotspot (not eduroam). Headset calibration about 1 cm off, fine for the preview (the robot uses its own calibration). Feedback (Jin + a test user): the measuring ball was hard to find, and users didn't know where they were pointing. Changes: the measuring ball is now **orange, bigger, joined to the controller by a short line, and only shown while calibrating** (prompts say "half sunk into the table": the ball's centre is what's measured); a **laser pointer** (thin cyan line + dot where the curve point will go) shows where you point while drawing.
+
 Parjanya's bridge stays (Wi-Fi link, table frame, calibration, URScript to the real robot). Only the "ask RoboDK" step is replaced for the preview. **Parjanya Singh and Matthias Nahum should know**, because it affects the robot-route decision.
 
 ---
