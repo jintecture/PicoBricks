@@ -245,8 +245,19 @@ def cmd_calib(args):
                 if tilt > 10:
                     print("  the gripper is %.0f deg from pointing straight down: turn it straight down and try again" % tilt)
                     continue
-                pts[key] = [round(v, 1) for v in tip]
                 print("  read: x %.1f  y %.1f  z %.1f mm" % tuple(tip))
+                # The robot may not be allowed to touch the table (safety limit / protective stop): then hold the
+                # fingertips just above the point and measure the gap with a ruler
+                g = input("  gap between fingertips and tabletop in mm (Enter = 0, touching): ").strip().replace(",", ".")
+                try:
+                    gap = float(g) if g else 0.0
+                except ValueError:
+                    print("  not a number - try this point again")
+                    continue
+                tip[2] -= gap
+                pts[key] = [round(v, 1) for v in tip]
+                if gap:
+                    print("  table top here: z %.1f mm" % tip[2])
                 break
             try:
                 pts[key] = [float(v) for v in s[:3]]
