@@ -39,6 +39,7 @@ public static class BrickSceneSetup
     // Pickup tray: in the back corner beside the robot (the real corners are taken by the robot's own base, the far
     // ones are out of reach). Its right edge this far left of the robot base centre, its back edge 3 cm from the back.
     const float TrayRightEdgeFromRobot = 0.19f; // the real robot's base plate reaches ~15 cm from its centre (21 Oct)
+    const float TrayFromBackEdge = 0f;          // tray flush against the back edge: easiest to place (Jin, 21 Oct)
 
     // The REAL LAMA table and robot, measured with a tape (Jin, 21 Oct). The HANDZONe model differs slightly
     // (1426 x 611 mm, robot centre 239 mm from the right end, 311 mm from the front edge); the ghost robot is moved
@@ -144,7 +145,7 @@ public static class BrickSceneSetup
             // Tray in the back corner beside the robot
             Vector3 robotBase = ghost.Component.baseInWorkspace;
             float trayLeft = robotBase.x - TrayRightEdgeFromRobot - TraySize.x;
-            float trayFront = ghost.Depth - EdgeMargin - TraySize.y;
+            float trayFront = ghost.Depth - TrayFromBackEdge - TraySize.y;
             // measured from the middle of the front edge, like the robot (TableCalibration.trayFromOrigin)
             trayOffset = new Vector2(trayLeft, trayFront);
             // Where walls may go = the whole table within the robot's reach, minus the tray (WallBuilder.Allowed,
