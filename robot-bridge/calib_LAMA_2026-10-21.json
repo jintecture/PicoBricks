@@ -1,0 +1,5 @@
+{
+  "front_right_mm": [297.7, 242.5, 7.6],
+  "front_edge_mm": [298.4, -579.8, 7.5],
+  "_note": "LAMA table, 21 Oct: read from the robot at its lowest allowed height (safety limit), fingertips 10 mm above the table, so 10 mm subtracted from z"
+}
