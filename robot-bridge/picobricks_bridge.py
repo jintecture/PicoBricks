@@ -40,7 +40,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 CALIB_FILE = os.path.join(HERE, "calib.json")
 
 # ======================= settings you may want to change =======================
-ROBOT_IP = "192.168.1.198"   # check on the pendant: Setup Robot > Network (or use --ip)
+ROBOT_IP = "192.168.1.2"     # LAMA UR5 (CB3, Polyscope 3.15), pendant: About screen; laptop 192.168.1.100 (21 Oct)
 ROBOT_STATE_PORT = 30003     # the robot streams its joints and position here (read only)
 LAMA_WIDTH = 1348.0          # mm, the real LAMA table's front edge (tape, 21 Oct); = RealTableLength in BrickSceneSetup.cs
 UDP_PORT = 5005

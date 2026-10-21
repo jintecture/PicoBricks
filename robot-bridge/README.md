@@ -28,7 +28,7 @@ Have someone who knows the robot and its **emergency stop** there for every real
 **1. Tray:** tape it in the back corner beside the robot, as in the headset: **440 mm from the table's right end** to the tray's right edge and **350 mm from the front edge** to the tray's front edge (flush against the back edge, 19 cm left of the robot centre). Pocket 1 at the front-left.
 
 **2. Network:**
-- Laptop ↔ robot: Ethernet cable. Robot IP: pendant → *Setup Robot → Network* (default here 192.168.1.198; another one? add `--ip x.x.x.x`). Laptop: Windows network settings → Ethernet → IP manually `192.168.1.100`, mask `255.255.255.0`.
+- Laptop ↔ robot: Ethernet cable. Robot IP: pendant → *Setup Robot → Network* (the LAMA UR5 is **192.168.1.2**, shown on the pendant's About screen; another one? add `--ip x.x.x.x`). Laptop: Windows network settings → Ethernet → IP manually `192.168.1.100`, mask `255.255.255.0`.
 - Headset ↔ laptop: laptop **Mobile hotspot** on, headset joins it (eduroam blocks device-to-device traffic).
 
 **3. Menu `c` (robot check, nothing moves):** shows the robot's joints and position. Run it twice in two different poses: the "distance flange ↔ robot's TCP" must stay the same. Then our UR5 maths matches the robot.
