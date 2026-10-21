@@ -1,0 +1,111 @@
+{
+ "type": "layout",
+ "seq": 1,
+ "frame": "table",
+ "units": "m_deg",
+ "_note": "Test wall without the headset, for the LAMA setup (tray in the back corner beside the robot): a straight 3 x 2 wall at the front. Menu t = one brick on the real robot.",
+ "bricks": [
+  {
+   "id": 1,
+   "name": "Brick_1",
+   "standing": false,
+   "pick": {
+    "x": 0.1205,
+    "y": 0.3915,
+    "z": 0.025,
+    "yaw": 0
+   },
+   "place": {
+    "x": -0.05,
+    "y": 0.12,
+    "z": 0.025,
+    "yaw": -90
+   }
+  },
+  {
+   "id": 2,
+   "name": "Brick_2",
+   "standing": false,
+   "pick": {
+    "x": 0.1995,
+    "y": 0.3915,
+    "z": 0.025,
+    "yaw": 0
+   },
+   "place": {
+    "x": 0.05,
+    "y": 0.12,
+    "z": 0.025,
+    "yaw": -90
+   }
+  },
+  {
+   "id": 3,
+   "name": "Brick_3",
+   "standing": false,
+   "pick": {
+    "x": 0.2785,
+    "y": 0.3915,
+    "z": 0.025,
+    "yaw": 0
+   },
+   "place": {
+    "x": 0.15,
+    "y": 0.12,
+    "z": 0.025,
+    "yaw": -90
+   }
+  },
+  {
+   "id": 4,
+   "name": "Brick_4",
+   "standing": false,
+   "pick": {
+    "x": 0.1205,
+    "y": 0.5205,
+    "z": 0.025,
+    "yaw": 0
+   },
+   "place": {
+    "x": -0.05,
+    "y": 0.12,
+    "z": 0.07500000000000001,
+    "yaw": -90
+   }
+  },
+  {
+   "id": 5,
+   "name": "Brick_5",
+   "standing": false,
+   "pick": {
+    "x": 0.1995,
+    "y": 0.5205,
+    "z": 0.025,
+    "yaw": 0
+   },
+   "place": {
+    "x": 0.05,
+    "y": 0.12,
+    "z": 0.07500000000000001,
+    "yaw": -90
+   }
+  },
+  {
+   "id": 6,
+   "name": "Brick_6",
+   "standing": false,
+   "pick": {
+    "x": 0.2785,
+    "y": 0.5205,
+    "z": 0.025,
+    "yaw": 0
+   },
+   "place": {
+    "x": 0.15,
+    "y": 0.12,
+    "z": 0.07500000000000001,
+    "yaw": -90
+   }
+  }
+ ]
+}

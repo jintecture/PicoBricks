@@ -24,6 +24,8 @@ echo  c  Robot check: read joints + position     (nothing moves)
 echo  5  Calibrate: front-right corner + front edge point, read from the robot
 echo  6  Hover above both calibration points      (REAL robot moves, slowly)
 echo  7  Gripper test: close, then open           (REAL robot)
+echo  t  TEST WALL without headset: ONE brick   (REAL robot, test_wall_lama.json)
+echo  w  TEST WALL without headset: full wall   (REAL robot)
 echo  8  Headset wall: ONE brick only             (REAL robot)
 echo  9  Headset wall: full wall                  (REAL robot)
 echo  q  Quit
@@ -36,6 +38,8 @@ if /i "%C%"=="c" %PY% picobricks_bridge.py check
 if "%C%"=="5" %PY% picobricks_bridge.py calib
 if "%C%"=="6" %PY% picobricks_bridge.py corners --backend urscript --real
 if "%C%"=="7" (%PY% picobricks_bridge.py grip close --real & %PY% picobricks_bridge.py grip open --real)
+if /i "%C%"=="t" %PY% picobricks_bridge.py run --backend urscript --real --one --file test_wall_lama.json
+if /i "%C%"=="w" %PY% picobricks_bridge.py run --backend urscript --real --file test_wall_lama.json
 if "%C%"=="8" %PY% picobricks_bridge.py run --backend urscript --real --one
 if "%C%"=="9" %PY% picobricks_bridge.py run --backend urscript --real
 if /i "%C%"=="q" exit /b
