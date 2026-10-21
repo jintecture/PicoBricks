@@ -182,7 +182,8 @@ public class WallBuilder : MonoBehaviour
         }
         var plane = new Plane(workspace.up, workspace.position);
         var ray = new Ray(rightController.position, rightController.forward);
-        bool hits = show && plane.Raycast(ray, out float distance) && distance < 5f;
+        float distance = 0f;
+        bool hits = show && plane.Raycast(ray, out distance) && distance < 5f;
         pointer.enabled = hits;
         pointerDot.gameObject.SetActive(hits);
         if (!hits) return;
