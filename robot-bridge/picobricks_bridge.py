@@ -705,9 +705,18 @@ def cmd_run(args):
     except OSError:
         ips = ["?"]
     log("listening on UDP %d - build a wall in the headset (A = OK). Laptop IPs: %s" % (UDP_PORT, ", ".join(ips)))
+    log("(Ctrl+C = stop listening and go back to the menu)")
     last_seq, last_time = None, 0.0
+    # Wait in 1-second steps: a plain wait doesn't notice Ctrl+C on Windows until a message arrives
+    sock.settimeout(1.0)
     while True:
-        data, addr = sock.recvfrom(65535)
+        try:
+            data, addr = sock.recvfrom(65535)
+        except socket.timeout:
+            continue
+        except KeyboardInterrupt:
+            log("stopped listening")
+            return
         # Walls that arrived while the previous one was being built are queued: only build the newest
         sock.setblocking(False)
         try:
@@ -716,7 +725,7 @@ def cmd_run(args):
         except (BlockingIOError, OSError):
             pass
         finally:
-            sock.setblocking(True)
+            sock.settimeout(1.0)          # back to waiting in 1-second steps
         try:
             layout = json.loads(data.decode())
         except ValueError:
