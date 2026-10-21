@@ -50,7 +50,7 @@ public static class BrickSceneSetup
     static readonly Vector2 TraySize = new Vector2(0.229f, 0.250f);
     // Robot reach for walls, measured on the table from the base (m). The UR5 maths says 0.11-0.81 with the gripper
     // pointing down; inside 20 cm the robot's own base is in the way, beyond 75 cm the arm is nearly stretched out
-    const float MinReach = 0.20f, MaxReach = 0.75f;
+    const float MinReach = 0.20f, MaxReach = 0.88f; // 0.90 at table height = 1150 mm from the table edge (measured, 21 Oct) minus 2 cm
 
     // Same as the menu, without opening the Unity window:
     // Unity.exe -batchmode -quit -projectPath <PicoBricks> -executeMethod BrickSceneSetup.SetupFromCommandLine

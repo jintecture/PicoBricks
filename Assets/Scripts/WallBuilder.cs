@@ -739,7 +739,9 @@ public class WallBuilder : MonoBehaviour
     // Floats above the front edge of the table, facing you
     void PlaceLabel()
     {
-        label.transform.position = workspace.TransformPoint(new Vector3(0f, 0.25f, 0f));
+        // Above the middle of the table: readable from the long side and from the short end (where users stand
+        // since 21 Oct, facing the bricks and the robot)
+        label.transform.position = workspace.TransformPoint(new Vector3(0f, 0.3f, table.localScale.z / 2f));
         var cam = Camera.main;
         if (cam != null)
             label.transform.rotation = Quaternion.LookRotation(label.transform.position - cam.transform.position);

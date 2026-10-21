@@ -44,8 +44,8 @@ public class TableCalibration : MonoBehaviour
 
     static readonly string[] FixedPrompts =
     {
-        "1/2  Put the ORANGE BALL on the FRONT-RIGHT corner\n(next to the robot), half sunk into the table, pull trigger",
-        "2/2  Put the ORANGE BALL on the FRONT EDGE further LEFT\n(as far as you can), half sunk into the table, pull trigger",
+        "1/2  ORANGE BALL on the corner at the ROBOT'S END,\non the long side with the LAMA logo. Half sunk, pull trigger",
+        "2/2  ORANGE BALL on that SAME long edge (LAMA logo side),\nas far from the robot as you can. Half sunk, pull trigger",
     };
 
     string[] CurrentPrompts => fixedSize ? FixedPrompts : Prompts;

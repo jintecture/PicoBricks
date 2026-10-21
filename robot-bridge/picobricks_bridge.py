@@ -64,7 +64,7 @@ SPEED = 100.0           # mm/s linear (first tests: slow)
 JOINT_SPEED = 30.0      # deg/s (the pendant's speed slider slows this down further)
 JOINT_ACCEL = 60.0      # deg/s^2
 HOME_JOINTS = [0, -90, -90, -90, 90, 0]   # simulation only: a tool-down "ready" pose
-UR5_REACH = 850.0       # mm: refuse targets further than this from the base
+UR5_REACH = 920.0       # mm: refuse targets further than this from the base (900 at table height, gripper down)
 MAX_BRICKS = 20
 # ===============================================================================
 
@@ -623,8 +623,17 @@ def preview(jobs, tf):
     for name, P, Q, _, _ in jobs:
         for T, grip in ((P, "close"), (Q, "open")):
             x, y, z, yaw = T
-            travel = (x, y, max(z + APPROACH, tf.origin[2] + TRAVEL_Z), yaw)
             up, at = (x, y, z + APPROACH, yaw), (x, y, z, yaw)
+            # Carry height: TRAVEL_Z above the table, but lower for far-away bricks, where a stretched-out arm can't
+            # reach that high (the UR5 reaches 900 mm from its base at table height, 815 mm at 250 mm up)
+            travel_z = max(z + APPROACH, tf.origin[2] + TRAVEL_Z)
+            while travel_z > z + APPROACH:
+                try:
+                    ik((x, y, travel_z, yaw), q)
+                    break
+                except ValueError:
+                    travel_z = max(z + APPROACH, travel_z - 20)
+            travel = (x, y, travel_z, yaw)
             try:
                 q = ik(travel, q)
                 add(q)
