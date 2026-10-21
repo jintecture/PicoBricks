@@ -388,6 +388,15 @@ What **PicoBricks → Setup Brick Scene** now does:
 - **A = "happy with it"**: only now the wall is saved and sent to the robot (`WallBuilder.Confirmed` → `BrickSender`). `BrickSender` no longer listens to A itself when there is a wall builder.
 - After sending, A does nothing; TRIGGER starts a new wall (and stops the ghost), X puts the bricks back.
 
+**Ready for the real robot (21 Oct):** Jin and Matthias test at the LAMA table today. Bridge changes, all tested against a pretend robot on the laptop (it streams joints like a UR5 on port 30003 and receives URScript on 30002):
+- **The real robot gets exactly the ghost's joint angles** (`movej` with joints from the same UR5 maths), not targets that the robot's controller would solve its own way.
+- **Reading the robot instead of typing numbers:** menu `c` reads the robot's joints and position (nothing moves) and checks that our maths matches the robot. Menu 5 reads the calibration points straight from the robot (press Enter at each point).
+- **Calibration points changed: front-right corner + a point on the front edge.** The robot can't reach the far-left corner of the 1.43 m LAMA table (about 1.2 m from its base); the test caught this. The same two points the headset uses, so robot and headset share one table frame (anchored at the front-right corner, LAMA width).
+- **Real robot vs ghost check:** before a real run, the bridge compares where the real robot stands (from the calibration) with the ghost in the headset and warns if they're more than 2 cm or 3° apart.
+- **Gripper test** (menu 7), **one-brick test** (menu 8), full wall (menu 9). Menu order in `PICOBRICKS.bat` follows the lab checklist in `robot-bridge/README.md`.
+- Unknown until the lab: the gripper's length (`TOOL_LENGTH`, assumed 150 mm), which output drives it, the robot's IP address.
+- Wi-Fi note: on eduroam the headset can't reach the laptop (device-to-device traffic is blocked); use the laptop's Mobile hotspot.
+
 Parjanya's bridge stays (Wi-Fi link, table frame, calibration, URScript to the real robot). Only the "ask RoboDK" step is replaced for the preview. **Parjanya Singh and Matthias Nahum should know**, because it affects the robot-route decision.
 
 ---

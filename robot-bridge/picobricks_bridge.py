@@ -30,6 +30,7 @@ import json
 import math
 import os
 import socket
+import struct
 import sys
 import time
 
@@ -39,25 +40,29 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 CALIB_FILE = os.path.join(HERE, "calib.json")
 
 # ======================= settings you may want to change =======================
-ROBOT_IP = "192.168.1.198"
+ROBOT_IP = "192.168.1.198"   # check on the pendant: Setup Robot > Network (or use --ip)
+ROBOT_STATE_PORT = 30003     # the robot streams its joints and position here (read only)
+LAMA_WIDTH = 1426.0          # mm, the LAMA table's front edge (measured from the HANDZONe model), as in the headset
 UDP_PORT = 5005
 PREVIEW_PORT = 5006     # the headset listens here for the robot movements (ghost UR5 preview, GhostPlayer.cs)
 PREVIEW_STEPS = 4       # straight (MoveL) moves are sent as this many in-between poses
 
 # Gripper (soft/parallel gripper picking the brick from the top)
-GRIP_DO = 0             # standard digital output that closes the gripper
+GRIP_DO = 0             # digital output that closes the gripper (find it with menu 7, the gripper test)
+GRIP_ON_TOOL = False    # True if the gripper is wired to the TOOL outputs at the flange, not the control box
 GRIP_CLOSE_VALUE = 1    # value that CLOSES it (flip to 0 if yours is the other way round)
 GRIP_WAIT_S = 0.8       # time for the gripper to close / open
 GRASP_DEPTH = 25.0      # mm: how far below the brick's top face the TCP goes (0 = suction on top)
 TOOL_YAW_OFFSET = 0.0   # deg: add 90 if the fingers close along the brick's length instead of across it
-TOOL_LENGTH = 150.0     # mm flange -> TCP; only used to add a tool in RoboDK if the station has none
+TOOL_LENGTH = 150.0     # mm from the flange (round end plate) to the fingertips: MEASURE IT with a tape at the robot
 
 BRICK_W, BRICK_L, BRICK_H = 50.0, 100.0, 50.0   # mm
 APPROACH = 80.0         # mm: go straight down/up this last bit with MoveL
 TRAVEL_Z = 250.0        # mm above the table top for moves between pick and place
 PLACE_CLEARANCE = 2.0   # mm: release this far above the exact place height
 SPEED = 100.0           # mm/s linear (first tests: slow)
-JOINT_SPEED = 30.0      # deg/s
+JOINT_SPEED = 30.0      # deg/s (the pendant's speed slider slows this down further)
+JOINT_ACCEL = 60.0      # deg/s^2
 HOME_JOINTS = [0, -90, -90, -90, 90, 0]   # simulation only: a tool-down "ready" pose
 UR5_REACH = 850.0       # mm: refuse targets further than this from the base
 MAX_BRICKS = 20
@@ -150,16 +155,99 @@ def load_calib():
         sys.exit("No calib.json yet. Run:  python picobricks_bridge.py calib")
     with open(CALIB_FILE) as f:
         c = json.load(f)
-    return TableFrame(c["front_left_mm"], c["front_right_mm"])
+    if "front_edge_mm" in c:
+        # Same as the headset's LAMA calibration: the front-right corner + any point further left on the front edge.
+        # The robot can't reach the far-left corner of the 1.43 m LAMA table, so it is worked out from the LAMA width.
+        fr, e = c["front_right_mm"], c["front_edge_mm"]
+        dx, dy = fr[0] - e[0], fr[1] - e[1]
+        n = math.hypot(dx, dy)
+        if n < 100:
+            sys.exit("calib.json: the two points are only %.0f mm apart - redo menu 5" % n)
+        c["front_left_mm"] = [fr[0] - dx / n * LAMA_WIDTH, fr[1] - dy / n * LAMA_WIDTH, (fr[2] + e[2]) / 2]
+    tf = TableFrame(c["front_left_mm"], c["front_right_mm"])
+    # The headset (LAMA mode) places the table from its FRONT-RIGHT corner with the LAMA table's width, so the
+    # table frame's origin (middle of the front edge) must be found the same way here, or headset and robot differ
+    # by half the width difference.
+    if "front_edge_mm" not in c and abs(tf.width - LAMA_WIDTH) > 5:
+        log("note: measured front edge %.0f mm, LAMA table %.0f mm: using the front-right corner as the anchor,"
+            " like the headset" % (tf.width, LAMA_WIDTH))
+    fr = c["front_right_mm"]
+    tf.origin = (fr[0] - tf.ux[0] * LAMA_WIDTH / 2, fr[1] - tf.ux[1] * LAMA_WIDTH / 2, tf.origin[2])
+    return tf
 
 
-def cmd_calib(_args):
-    print("Jog the TCP (gripper fingertips) onto each corner of the table TOP, then read X Y Z\n"
-          "on the pendant: Move tab, Feature = BASE, mm. Same corners as the headset calibration.\n")
+# ---------------- reading the real robot (UR "realtime" interface, port 30003; nothing moves) ----------------
+def read_robot_state():
+    """The robot's joint angles (deg) and the TCP position it reports (mm, robot base frame), right now."""
+    with socket.create_connection((ROBOT_IP, ROBOT_STATE_PORT), timeout=3) as s:
+        data = b""
+        while len(data) < 4:
+            data += s.recv(4096)
+        size = struct.unpack(">i", data[:4])[0]
+        while len(data) < size:
+            data += s.recv(4096)
+
+    def d(i):                                    # the i-th number after the message size (CB3 / Polyscope 3.x)
+        return struct.unpack(">d", data[4 + 8 * i: 12 + 8 * i])[0]
+    q = [math.degrees(d(31 + k)) for k in range(6)]       # q_actual
+    tcp = [d(55 + k) * 1000 for k in range(3)]            # tool vector actual (position part)
+    return q, tcp
+
+
+def tip_from_joints(q):
+    """Where the gripper tip is for these joint angles (our UR5 maths + TOOL_LENGTH), and how far the tool is from
+    pointing straight down (deg)."""
+    T = kin.mul(kin.forward(q), kin.transl(0, 0, TOOL_LENGTH))
+    tilt = math.degrees(math.acos(max(-1.0, min(1.0, -T[2][2]))))
+    return [T[0][3], T[1][3], T[2][3]], tilt
+
+
+def cmd_check(_args):
+    """Nothing moves: shows the robot's joints, where our maths puts the hand, and where the robot says its TCP is."""
+    try:
+        q, tcp = read_robot_state()
+    except OSError as e:
+        sys.exit("Can't reach the robot at %s: %s\n(Ethernet cable in? Laptop IP 192.168.1.x? Robot IP right?)" % (ROBOT_IP, e))
+    flange = kin.forward(q)
+    f = [flange[0][3], flange[1][3], flange[2][3]]
+    tip, tilt = tip_from_joints(q)
+    gap = math.dist(f, tcp)
+    log("connected to the robot at %s" % ROBOT_IP)
+    log("joints (deg):            " + "  ".join("%7.1f" % v for v in q))
+    log("our maths, flange (mm):  x %7.1f  y %7.1f  z %7.1f" % tuple(f))
+    log("our maths, gripper tip:  x %7.1f  y %7.1f  z %7.1f   (TOOL_LENGTH %.0f mm, tool %.0f deg from straight down)"
+        % (tip[0], tip[1], tip[2], TOOL_LENGTH, tilt))
+    log("robot says TCP (mm):     x %7.1f  y %7.1f  z %7.1f" % tuple(tcp))
+    log("distance flange <-> robot's TCP: %.1f mm" % gap)
+    print("\nHow to read this: the distance should equal the TCP length set on the pendant (0 if none is set),\n"
+          "and stay the SAME when you run this again in a different pose. Then our maths matches the robot.\n"
+          "If it is huge (hundreds of mm) or changes a lot between poses: stop and tell Claude.")
+
+
+def cmd_calib(args):
+    print("Calibrate the table for the robot: the SAME two points as the headset uses.\n"
+          "Jog the robot (pendant, Move tab) with the gripper pointing straight DOWN until its fingertips touch\n"
+          "the table TOP at each point. Then press Enter here: the laptop reads the position from the robot.\n"
+          "  1. the FRONT-RIGHT corner (front edge = the long side where the user stands; right = the robot's end)\n"
+          "  2. a point on the FRONT EDGE further left, as far as the robot comfortably reaches (40-60 cm)\n"
+          "(No connection? Type X Y Z from the pendant instead: Move tab, Feature = Base, mm.)\n")
     pts = {}
-    for key, label in (("front_left_mm", "FRONT-LEFT"), ("front_right_mm", "FRONT-RIGHT")):
+    for key, label in (("front_right_mm", "1. FRONT-RIGHT corner"), ("front_edge_mm", "2. FRONT EDGE point, further left")):
         while True:
-            s = input("%s corner  X Y Z (mm, spaces): " % label).replace(",", " ").split()
+            s = input("%s: Enter = read from robot, or type X Y Z: " % label).replace(",", " ").split()
+            if not s:
+                try:
+                    q, _tcp = read_robot_state()
+                except OSError as e:
+                    print("  can't reach the robot (%s). Type X Y Z instead." % e)
+                    continue
+                tip, tilt = tip_from_joints(q)
+                if tilt > 10:
+                    print("  the gripper is %.0f deg from pointing straight down: turn it straight down and try again" % tilt)
+                    continue
+                pts[key] = [round(v, 1) for v in tip]
+                print("  read: x %.1f  y %.1f  z %.1f mm" % tuple(tip))
+                break
             try:
                 pts[key] = [float(v) for v in s[:3]]
                 if len(pts[key]) == 3:
@@ -169,8 +257,30 @@ def cmd_calib(_args):
             print("  need three numbers, e.g.  -350.2 -420.0 12.5")
     with open(CALIB_FILE, "w") as f:
         json.dump(pts, f, indent=2)
-    tf = TableFrame(pts["front_left_mm"], pts["front_right_mm"])
-    log("saved %s - front edge %.0f mm wide (tape-measure it!), table yaw %.1f deg" % (CALIB_FILE, tf.width, tf.yaw0))
+    tf = load_calib()
+    log("saved %s - points %.0f mm apart, table turned %.1f deg in the robot's frame"
+        % (CALIB_FILE, math.dist(pts["front_right_mm"][:2], pts["front_edge_mm"][:2]), tf.yaw0))
+    if abs(pts["front_edge_mm"][2] - pts["front_right_mm"][2]) > 5:
+        log("!! the points differ %.0f mm in height: table not level, or the tip didn't touch both the same way"
+            % abs(pts["front_edge_mm"][2] - pts["front_right_mm"][2]))
+
+
+def real_vs_ghost(robot, tf):
+    """Real robot (from calib.json) vs where the headset's ghost stands: how far off would the AR preview be?"""
+    ox, oy = -tf.origin[0], -tf.origin[1]                 # robot base, seen from the table origin (robot axes)
+    bx = ox * tf.ux[0] + oy * tf.ux[1]
+    by = ox * tf.uy[0] + oy * tf.uy[1]
+    off = math.hypot(bx - robot["x"] * 1000, by - robot["y"] * 1000)
+    real_turn = math.degrees(math.atan2(tf.uy[0], tf.ux[0]))
+    ghost_turn = robot["armYaw0"] - arm_yaw(0)
+    dturn = (real_turn - ghost_turn + 180) % 360 - 180
+    msg = ("real robot vs ghost in the headset: base %.0f mm apart, turned %.1f deg differently "
+           "(real base at %.0f, %.0f mm on the table)" % (off, dturn, bx, by))
+    if off > 20 or abs(dturn) > 3:
+        log("!! " + msg + " - the AR preview will not match the real robot. Redo the calibration (menu 5 and B in"
+            " the headset), or tell Claude the numbers.")
+    else:
+        log(msg + " - OK")
 
 
 # ---------------- cleaning up what the headset sends ----------------
@@ -373,9 +483,24 @@ class URScriptBackend:
         h = math.radians(yaw) / 2
         return "p[%.5f,%.5f,%.5f,%.5f,%.5f,0]" % (x / 1000, y / 1000, z / 1000, math.pi * math.cos(h), math.pi * math.sin(h))
 
-    def grip(self, close):
+    @staticmethod
+    def grip(close):
         val = "True" if (close == bool(GRIP_CLOSE_VALUE)) else "False"
-        return ["  set_standard_digital_out(%d, %s)" % (GRIP_DO, val), "  sleep(%.2f)" % GRIP_WAIT_S]
+        fn = "set_tool_digital_out" if GRIP_ON_TOOL else "set_standard_digital_out"
+        return ["  %s(%d, %s)" % (fn, GRIP_DO, val), "  sleep(%.2f)" % GRIP_WAIT_S]
+
+    @staticmethod
+    def joint_moves(frames):
+        """The exact poses the ghost played, as URScript joint moves, with the gripper at the marked poses.
+        The first pose (the ghost's 'home') is skipped: the robot goes from wherever it is straight above the table."""
+        v, a = math.radians(JOINT_SPEED), math.radians(JOINT_ACCEL)
+        lines = []
+        for f in frames[1:]:
+            q = ",".join("%.5f" % math.radians(x) for x in f["j"])
+            lines.append("  movej([%s], a=%.3f, v=%.3f)" % (q, a, v))
+            if f.get("grip"):
+                lines += URScriptBackend.grip(f["grip"] == "close")
+        return lines
 
     def down_up(self, T, close):
         x, y, z, yaw = T
@@ -403,16 +528,26 @@ class URScriptBackend:
         log("sent to UR5 - it is moving now. E-stop in reach.")
 
     def run(self, jobs):
-        lines = []
-        for _n, P, Q, _, _ in jobs:
-            lines += self.down_up(P, True) + self.down_up(Q, False)
-        self.send(lines)
+        # Exactly the joint angles the ghost robot played in the headset (same maths), not targets the robot's
+        # controller solves its own way: what you saw is what it does.
+        self.send(self.joint_moves(preview(jobs, self.tf)))
 
     def hover(self, pts):
+        # Joint moves from our own UR5 maths, so this also tests that our maths matches the real robot
+        v, a = math.radians(JOINT_SPEED), math.radians(JOINT_ACCEL)
+        q = [float(x) for x in HOME_JOINTS]
         lines = []
         for p in pts:
-            lines += ["  movej(%s, a=0.8, v=0.5)" % self.p(p[0], p[1], p[2] + 30, self.tf.yaw0), "  sleep(2)"]
+            flange = kin.mul(kin.tcp_pose(p[0], p[1], p[2] + 30, self.tf.yaw0), kin.transl(0, 0, -TOOL_LENGTH))
+            q = kin.inverse(flange, q)
+            if q is None:
+                sys.exit("can't reach above the corner %s - check calib.json" % p)
+            lines += ["  movej([%s], a=%.3f, v=%.3f)" % (",".join("%.5f" % math.radians(x) for x in q), a, v),
+                      "  sleep(3)"]
         self.send(lines)
+
+    def grip_test(self, close):
+        self.send(self.grip(close))
 
 
 class PrintBackend:
@@ -532,7 +667,12 @@ def handle(layout, tf, backend, args, sock=None, addr=None):
             backend.tf = tf
         except Exception as e:
             log("!! couldn't line the robot up with the ghost robot, using calib.json:", e)
+    if robot.get("valid") and args.real:
+        real_vs_ghost(robot, tf)
     jobs = plan(layout, tf, args)
+    if getattr(args, "one", False) and jobs:
+        jobs = jobs[:1]
+        log("ONE-BRICK TEST: only %s is built" % jobs[0][0])
     log("layout seq %s: %d bricks received, %d to build" % (layout.get("seq"), len(layout.get("bricks", [])), len(jobs)))
     if not jobs:
         return
@@ -544,6 +684,8 @@ def handle(layout, tf, backend, args, sock=None, addr=None):
     if confirm(args, len(jobs)):
         try:
             backend.run(jobs)
+        except OSError as e:                      # no network connection to the robot
+            log("!! can't connect to the robot at %s: %s (Ethernet cable? IP addresses? menu c = robot check)" % (ROBOT_IP, e))
         except Exception as e:                    # e.g. RoboDK "target not reachable"
             log("!! robot error:", e)
             log("   (unreachable target? check calib.json / where the wall is on the table)")
@@ -596,17 +738,33 @@ def cmd_corners(args):
     tf = load_calib()
     with open(CALIB_FILE) as f:
         c = json.load(f)
-    if args.real and not args.yes and input("Hover 30 mm above both corners on the REAL robot? [y/N] ").lower() != "y":
+    if args.real and not args.yes and input("Hover 30 mm above both calibration points on the REAL robot? [y/N] ").lower() != "y":
         return
-    BACKENDS[args.backend](args.real, tf).hover([c["front_left_mm"], c["front_right_mm"]])
+    pts = [c["front_right_mm"], c["front_edge_mm"]] if "front_edge_mm" in c else [c["front_left_mm"], c["front_right_mm"]]
+    BACKENDS[args.backend](args.real, tf).hover(pts)
+
+
+def cmd_grip(args):
+    if args.real and not args.yes and input("%s the gripper on the REAL robot? [y/N] " % args.action.capitalize()).lower() != "y":
+        return
+    URScriptBackend(args.real, None).grip_test(args.action == "close")
 
 
 def main():
+    global ROBOT_IP
     ap = argparse.ArgumentParser(description="PicoBricks headset -> UR5")
     sub = ap.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("calib", help="type the two corner coordinates from the pendant")
+    parsers = {
+        "calib": sub.add_parser("calib", help="the two table corners: read from the robot (Enter) or typed"),
+        "check": sub.add_parser("check", help="read the robot's joints and position (nothing moves)"),
+        "grip": sub.add_parser("grip", help="open or close the gripper (gripper test)"),
+    }
+    parsers["grip"].add_argument("action", choices=["open", "close"])
+    parsers["grip"].add_argument("--real", action="store_true", help="send it to the real robot (default: only write the script)")
+    parsers["grip"].add_argument("--yes", action="store_true", help="don't ask")
     for name in ("run", "corners"):
         s = sub.add_parser(name)
+        parsers[name] = s
         s.add_argument("--backend", choices=BACKENDS, default="robodk")
         s.add_argument("--real", action="store_true", help="move the real robot (default: simulation / dry run)")
         s.add_argument("--yes", action="store_true", help="don't ask before moving")
@@ -614,8 +772,12 @@ def main():
             s.add_argument("--file", help="use a saved layout instead of listening for the headset")
             s.add_argument("--grid", type=float, default=0, help="snap x/y to this grid in mm (e.g. 50); 0 = off")
             s.add_argument("--snap-rot", action="store_true", help="snap yaw to 90 deg (hand-placed bricks)")
+            s.add_argument("--one", action="store_true", help="first test: build only the first brick")
+    for s in parsers.values():
+        s.add_argument("--ip", default=ROBOT_IP, help="robot IP address (default %s)" % ROBOT_IP)
     args = ap.parse_args()
-    {"calib": cmd_calib, "run": cmd_run, "corners": cmd_corners}[args.cmd](args)
+    ROBOT_IP = args.ip
+    {"calib": cmd_calib, "run": cmd_run, "corners": cmd_corners, "check": cmd_check, "grip": cmd_grip}[args.cmd](args)
 
 
 if __name__ == "__main__":

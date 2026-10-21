@@ -18,12 +18,34 @@ Pico (WallBuilder + BrickSender.cs) ──Wi-Fi, UDP 5005──▶ laptop: picob
 
 The placeholder `calib.example.json` puts the table 75 cm in front of the robot. The layout's shape is right, but not its place relative to the real robot.
 
-## At the robot
-1. Laptop Ethernet static `192.168.1.100`, `ping 192.168.1.198`. Set the **TCP to the gripper fingertips** on the pendant.
-2. Menu **5**: jog the TCP onto the table's front-left and front-right corners, type X Y Z (Move tab, Feature = Base, mm).
-3. Menu **6**: the robot hovers 30 mm above each corner. If it's not above the corner, stop: the frame is wrong.
-4. The real tray goes at the table's **front-left corner**, exactly like the virtual one (`TableCalibration.trayOffset` if it's taped further in).
-5. Calibrate the headset on the same table, build a wall, A → menu **3** (simulation) → menu **7** (real, speed slider 20–30 %, e-stop in hand). RoboDK won't connect (licence)? Menu **8**.
+## At the robot (first real test, checklist)
+Have someone who knows the robot and its **emergency stop** there for every real move. Speed slider on the pendant **10–20 %**.
+
+**0. Measure (tape measure):**
+- the gripper, from the flange (round end plate) to the fingertips → `TOOL_LENGTH` at the top of `picobricks_bridge.py` (now 150 mm);
+- where the robot stands: its base centre should be about **24 cm from the table's right end** and **31 cm from the front edge** (that's where the ghost stands). If it's very different, tell Claude.
+
+**1. Tray:** tape it in the back corner beside the robot, as in the headset: its **right edge 16 cm left of the robot base centre** (≈ 40 cm from the table's right end), its **back edge 3 cm from the table's back edge**. Pocket 1 at the front-left.
+
+**2. Network:**
+- Laptop ↔ robot: Ethernet cable. Robot IP: pendant → *Setup Robot → Network* (default here 192.168.1.198; another one? add `--ip x.x.x.x`). Laptop: Windows network settings → Ethernet → IP manually `192.168.1.100`, mask `255.255.255.0`.
+- Headset ↔ laptop: laptop **Mobile hotspot** on, headset joins it (eduroam blocks device-to-device traffic).
+
+**3. Menu `c` (robot check, nothing moves):** shows the robot's joints and position. Run it twice in two different poses: the "distance flange ↔ robot's TCP" must stay the same. Then our UR5 maths matches the robot.
+
+**4. Gripper:** easiest on the pendant's *I/O* tab: switch outputs on and off until the gripper moves; note the number and whether on = closed. Put it in `GRIP_DO` / `GRIP_CLOSE_VALUE` (`GRIP_ON_TOOL = True` if it's a "tool" output). Then menu **7** closes and opens it from the laptop.
+
+**5. Menu 5 (calibrate):** jog the gripper (pointing straight down) onto the table top at (1) the **front-right corner** and (2) a point on the **front edge 40–60 cm further left**; press Enter at each, the laptop reads the position from the robot. Same two points as the headset's calibration. (The robot can't reach the far-left corner of the 1.43 m table.)
+
+**6. Menu 6 (hover):** the robot goes 3 cm above both points. Not above them? Stop, redo 5.
+
+**7. Headset:** calibrate with **B** on the same two points. The ghost robot should sit on the real robot.
+
+**8. Rehearsal, menu 3:** draw a wall, A, watch the ghost build it. Nothing real moves.
+
+**9. Menu 8 (one brick):** draw, A, watch the ghost, then answer **y** in the black window: the robot moves **one** brick with exactly the ghost's joint angles. The window also prints "real robot vs ghost: … OK" (or a warning if the headset and robot calibrations disagree).
+
+**10. Menu 9 (full wall)** when one brick worked.
 
 ## Settings (top of `picobricks_bridge.py`)
 `GRIP_DO` / `GRIP_CLOSE_VALUE` (which output closes the gripper), `GRASP_DEPTH` (how far below the brick top the TCP goes), `TOOL_YAW_OFFSET` (90 if the fingers close along the brick), `TOOL_LENGTH` (RoboDK tool if the station has none), `TRAVEL_Z`, `APPROACH`, `SPEED`.

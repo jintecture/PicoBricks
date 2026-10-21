@@ -1,5 +1,5 @@
 @echo off
-REM PicoBricks -> RoboDK -> UR5.  Double-click, pick a number.
+REM PicoBricks -> UR5.  Double-click, pick a number.
 cd /d "%~dp0"
 set PY=
 REM RoboDK installs its own Python (with the robodk library) - use that first, so no separate Python is needed.
@@ -17,22 +17,26 @@ echo.
 echo ================= PicoBricks bridge =================
 echo  1  Sample wall in RoboDK simulation        (needs a RoboDK licence)
 echo  2  Listen for headset, PRINT only           (test Wi-Fi)
-echo  3  Listen for headset, GHOST ROBOT in the headset (no RoboDK)
+echo  3  Listen for headset, GHOST ROBOT in the headset (nothing real moves)
 echo  4  Replay last headset layout in RoboDK   (needs a RoboDK licence)
-echo  ---------------- at the robot ----------------
-echo  5  Calibrate: type the 2 corners from the pendant
-echo  6  Hover over both corners, REAL robot      (check calib)
-echo  7  Listen for headset, REAL robot via RoboDK
-echo  8  Listen for headset, REAL robot via URScript (no RoboDK)
+echo  ------------- at the REAL robot, in this order -------------
+echo  c  Robot check: read joints + position     (nothing moves)
+echo  5  Calibrate: front-right corner + front edge point, read from the robot
+echo  6  Hover above both calibration points      (REAL robot moves, slowly)
+echo  7  Gripper test: close, then open           (REAL robot)
+echo  8  Headset wall: ONE brick only             (REAL robot)
+echo  9  Headset wall: full wall                  (REAL robot)
 echo  q  Quit
-set /p C=Choice: 
+set /p C=Choice:
 if "%C%"=="1" %PY% picobricks_bridge.py run --file sample_layout.json
 if "%C%"=="2" %PY% picobricks_bridge.py run --backend print
 if "%C%"=="3" %PY% picobricks_bridge.py run --backend ghost
 if "%C%"=="4" %PY% picobricks_bridge.py run --file last_layout.json
+if /i "%C%"=="c" %PY% picobricks_bridge.py check
 if "%C%"=="5" %PY% picobricks_bridge.py calib
-if "%C%"=="6" %PY% picobricks_bridge.py corners --real
-if "%C%"=="7" %PY% picobricks_bridge.py run --real
-if "%C%"=="8" %PY% picobricks_bridge.py run --backend urscript --real
+if "%C%"=="6" %PY% picobricks_bridge.py corners --backend urscript --real
+if "%C%"=="7" (%PY% picobricks_bridge.py grip close --real & %PY% picobricks_bridge.py grip open --real)
+if "%C%"=="8" %PY% picobricks_bridge.py run --backend urscript --real --one
+if "%C%"=="9" %PY% picobricks_bridge.py run --backend urscript --real
 if /i "%C%"=="q" exit /b
 goto menu
