@@ -401,6 +401,14 @@ What **PicoBricks → Setup Brick Scene** now does:
 
 **Real table measured (21 Oct, Jin):** the LAMA table is **1348 × 600 mm** (the HANDZONe model: 1426 × 611), and the robot's centre is **250 mm from the right end, 300 mm from the front edge** (model: 239 / 311). The tray at the planned spot touched the robot's base plate (it reaches ~15 cm from the centre). Changes: the setup moves the ghost robot to the real spot and uses the real table size (`RealTableLength`, `RealTableDepth`, `RobotFromRightEnd`, `RobotFromFrontEdge` in `BrickSceneSetup.cs`; `LAMA_WIDTH` in the bridge = 1348), the tray keeps 19 cm from the robot's centre. **Tray: 440 mm from the right end, flush against the back edge** (350 mm from the front edge; changed from 30 mm off the back on Jin's request). `test_wall_lama.json` regenerated for these positions.
 
+## 2026-10-21/22: First real brick 🎉
+- **Connection:** robot (CB3, Polyscope 3.15) at **192.168.1.2** (pendant: About screen), laptop cable address **192.168.1.100** manual (Windows remembers it). On eduroam the headset can't reach the laptop: laptop **Mobile hotspot** for the headset.
+- **Robot check (`c`):** our UR5 maths and the robot's own TCP reading agree to 0.1–1 mm in two very different poses; the pendant's TCP is 151 mm from the flange (`TOOL_LENGTH = 151`).
+- **Gripper:** standard digital output **4**, on = closed.
+- **Real table:** 1348 × 600 mm, robot centre 250 mm from its short edge and 300 mm from the LAMA-logo edge (the model differed by ~1 cm). Tray 440 mm from the robot's end, flush against the back edge.
+- **Robot calibration (menu 5):** the robot's safety limit stops it ~10 mm above the table, so the calibration now asks for the gap (measured with a ruler) and subtracts it. Corner (297.7, 242.5, 7.6) and edge point (298.4, −579.8, 7.5) mm, 82 cm apart, X differs 0.7 mm. Backup: `robot-bridge/calib_LAMA_2026-10-21.json`.
+- **Next day (22 Oct):** cable in → `c` connected straight away; **menu 6 hover: still exactly above both points** (no new calibration needed); **menu `t`: the UR5 picked Brick_1 from the tray and placed it in the test wall** with the same joint angles the ghost uses. ✅ First real brick.
+
 Parjanya's bridge stays (Wi-Fi link, table frame, calibration, URScript to the real robot). Only the "ask RoboDK" step is replaced for the preview. **Parjanya Singh and Matthias Nahum should know**, because it affects the robot-route decision.
 
 ---
