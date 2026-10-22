@@ -63,6 +63,7 @@ PLACE_CLEARANCE = 2.0   # mm: release this far above the exact place height
 SPEED = 100.0           # mm/s linear (first tests: slow)
 JOINT_SPEED = 30.0      # deg/s (the pendant's speed slider slows this down further)
 JOINT_ACCEL = 60.0      # deg/s^2
+BLEND_MAX = 20.0        # mm: how much the robot may cut corners between in-between poses (0 = stop at every pose)
 HOME_JOINTS = [0, -90, -90, -90, 90, 0]   # simulation only: a tool-down "ready" pose
 UR5_REACH = 920.0       # mm: refuse targets further than this from the base (900 at table height, gripper down)
 MAX_BRICKS = 20
@@ -505,10 +506,25 @@ class URScriptBackend:
         """The exact poses the ghost played, as URScript joint moves, with the gripper at the marked poses.
         The first pose (the ghost's 'home') is skipped: the robot goes from wherever it is straight above the table."""
         v, a = math.radians(JOINT_SPEED), math.radians(JOINT_ACCEL)
+        frames = frames[1:]
+        # Where the hand is at each pose (our UR5 maths), to size the blends
+        hand = []
+        for f in frames:
+            T = kin.forward(f["j"])
+            hand.append((T[0][3], T[1][3], T[2][3]))
         lines = []
-        for f in frames[1:]:
+        for i, f in enumerate(frames):
             q = ",".join("%.5f" % math.radians(x) for x in f["j"])
-            lines.append("  movej([%s], a=%.3f, v=%.3f)" % (q, a, v))
+            # Blend: flow through in-between poses instead of stopping at each one (stop-go looked jerky, 22 Oct).
+            # Stop exactly only where the gripper acts, and at the end. The blend may cut the corner by at most
+            # BLEND_MAX, and never more than 40 % of the distance to the neighbouring poses (UR requirement).
+            if f.get("grip") or i == len(frames) - 1:
+                r = 0.0
+            else:
+                d_prev = math.dist(hand[i], hand[i - 1]) if i > 0 else 1e9
+                d_next = math.dist(hand[i], hand[i + 1])
+                r = min(BLEND_MAX, 0.4 * min(d_prev, d_next)) / 1000.0
+            lines.append("  movej([%s], a=%.3f, v=%.3f, r=%.4f)" % (q, a, v, r))
             if f.get("grip"):
                 lines += URScriptBackend.grip(f["grip"] == "close")
         return lines
