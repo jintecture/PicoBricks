@@ -557,7 +557,7 @@ class URScriptBackend:
     def run(self, jobs):
         # Exactly the joint angles the ghost robot played in the headset (same maths), not targets the robot's
         # controller solves its own way: what you saw is what it does.
-        self.send(self.joint_moves(preview(jobs, self.tf)))
+        self.send(self.joint_moves(preview(jobs, self.tf, getattr(self, "start", None))))
 
     def hover(self, pts):
         # Joint moves from our own UR5 maths, so this also tests that our maths matches the real robot
@@ -615,7 +615,7 @@ def arm_yaw(base_deg):
     return math.degrees(math.atan2(a[1][3] - b[1][3], a[0][3] - b[0][3]))
 
 
-def preview(jobs, tf):
+def preview(jobs, tf, start=None):
     """The same moves as RoboDKBackend.run(), as joint angles for the headset's ghost robot:
     list of {"j": 6 angles in deg, "grip": "close"/"open", "brick": name}."""
     frames = []
@@ -638,7 +638,9 @@ def preview(jobs, tf):
             add(q)
         return q
 
-    q = [float(v) for v in HOME_JOINTS]
+    # Start (and end) where the real robot is right now, so the ghost and the robot begin in the same pose
+    # (start = its joint angles, read from the robot). Without a robot: a fixed tool-down "ready" pose.
+    q = [float(v) for v in (start if start else HOME_JOINTS)]
     add(q)
     cx, cy, cz = tf.point(0, 300, TRAVEL_Z)
     try:
@@ -646,7 +648,7 @@ def preview(jobs, tf):
         add(q)
     except ValueError:
         pass
-    home = list(q)
+    home = [float(v) for v in start] if start else list(q)
     for name, P, Q, _, _ in jobs:
         for T, grip in ((P, "close"), (Q, "open")):
             x, y, z, yaw = T
@@ -679,11 +681,11 @@ def preview(jobs, tf):
     return frames
 
 
-def send_preview(layout, tf, jobs, backend, sock, addr):
-    """Work out the robot's movements in RoboDK and send them to the headset, where the ghost UR5 plays them."""
+def send_preview(layout, tf, jobs, backend, sock, addr, start=None):
+    """Work out the robot's movements and send them to the headset, where the ghost UR5 plays them."""
     msg = {"type": "preview", "seq": layout.get("seq", 0)}
     try:
-        msg["frames"] = preview(jobs, tf)
+        msg["frames"] = preview(jobs, tf, start)
         log("sent the robot movements to the headset (%d poses) - watch the ghost robot" % len(msg["frames"]))
     except Exception as e:
         msg["error"] = str(e)
@@ -713,8 +715,17 @@ def handle(layout, tf, backend, args, sock=None, addr=None):
     if not jobs:
         return
     print_jobs(jobs)
+    # Real robot: start the ghost (and the robot's program) from the robot's actual pose
+    start = None
+    if args.real and isinstance(backend, URScriptBackend):
+        try:
+            start, _tcp = read_robot_state()
+            log("robot's current pose read: the ghost starts from it")
+        except OSError as e:
+            log("!! couldn't read the robot's pose (%s) - the ghost starts from the ready pose" % e)
+        backend.start = start
     if sock is not None and addr:
-        send_preview(layout, tf, jobs, backend, sock, addr)
+        send_preview(layout, tf, jobs, backend, sock, addr, start)
     if isinstance(backend, GhostBackend):
         return                                    # preview only, nothing else moves
     if confirm(args, len(jobs)):
@@ -742,7 +753,7 @@ def cmd_run(args):
         ips = ["?"]
     log("listening on UDP %d - build a wall in the headset (A = OK). Laptop IPs: %s" % (UDP_PORT, ", ".join(ips)))
     log("(Ctrl+C = stop listening and go back to the menu)")
-    last_seq, last_time = None, 0.0
+    last_key = None
     # Wait in 1-second steps: a plain wait doesn't notice Ctrl+C on Windows until a message arrives
     sock.settimeout(1.0)
     while True:
@@ -767,12 +778,14 @@ def cmd_run(args):
         except ValueError:
             log("ignored junk from", addr)
             continue
-        # Each wall arrives twice (direct + broadcast) with the same seq. The headset restarts seq at 1 when the
-        # app restarts, so only treat it as a duplicate if it also arrived within a couple of seconds.
-        now = time.time()
-        if layout.get("seq") == last_seq and now - last_time < 2.0:
+        # Each wall arrives twice (direct + broadcast). The copy can sit in the queue while the bridge waits for
+        # "y" and arrive long after the first one (it replayed the ghost, 22 Oct), so copies are recognised by their
+        # number AND content, however late. (The headset restarts its numbering when the app restarts, but a new
+        # wall then has different bricks.)
+        key = (layout.get("seq"), json.dumps(layout.get("bricks"), sort_keys=True))
+        if key == last_key:
             continue
-        last_seq, last_time = layout.get("seq"), now
+        last_key = key
         log("from headset", addr[0])
         with open(os.path.join(HERE, "last_layout.json"), "w") as f:
             json.dump(layout, f, indent=2)       # replay later with --file last_layout.json

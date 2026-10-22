@@ -44,8 +44,8 @@ public class TableCalibration : MonoBehaviour
 
     static readonly string[] FixedPrompts =
     {
-        "1/2  ORANGE BALL on the corner at the ROBOT'S END,\non the long side with the LAMA logo. Half sunk, pull trigger",
-        "2/2  ORANGE BALL on that SAME long edge (LAMA logo side),\nas far from the robot as you can. Half sunk, pull trigger",
+        "1/2  ORANGE BALL resting ON the corner at the ROBOT'S END,\non the long side with the LAMA logo. Pull trigger",
+        "2/2  ORANGE BALL resting ON that SAME long edge (LAMA logo side),\nas far from the robot as you can. Pull trigger",
     };
 
     string[] CurrentPrompts => fixedSize ? FixedPrompts : Prompts;
@@ -68,6 +68,7 @@ public class TableCalibration : MonoBehaviour
     TextMesh label;
 
     Vector3 TipPosition => rightController.position + rightController.forward * tipOffset;
+    const float TipRadius = 0.01f; // the orange ball is 2 cm wide
 
     void Start()
     {
@@ -76,7 +77,7 @@ public class TableCalibration : MonoBehaviour
         tip = GameObject.CreatePrimitive(PrimitiveType.Sphere).transform;
         tip.name = "Calibration Tip";
         Destroy(tip.GetComponent<Collider>());
-        tip.localScale = Vector3.one * 0.02f;
+        tip.localScale = Vector3.one * (2f * TipRadius);
         if (tipMaterial != null) tip.GetComponent<Renderer>().sharedMaterial = tipMaterial;
         tipLine = new GameObject("Calibration Tip Line").AddComponent<LineRenderer>();
         tipLine.sharedMaterial = tipMaterial != null ? tipMaterial : tip.GetComponent<Renderer>().sharedMaterial;
@@ -185,7 +186,9 @@ public class TableCalibration : MonoBehaviour
         Vector3 forward = Vector3.Cross(right, Vector3.up);
         float width = fixedTableSize.x, height = fixedTableSize.y, depth = fixedTableSize.z;
         Vector3 frontMiddle = frontRight - right * (width / 2f);
-        frontMiddle.y = frontRight.y;
+        // The ball rests ON the table: the table top is one ball radius below the measured ball centre
+        // (without this the whole table, and every brick, sat 1 cm too high, 22 Oct)
+        frontMiddle.y = (frontRight.y + onFrontEdge.y) / 2f - TipRadius;
         Apply(frontMiddle, forward, width, depth, height,
               $"LAMA table placed from its right corner\n({width * 100f:F0} x {depth * 100f:F0} cm)   B = redo");
     }
