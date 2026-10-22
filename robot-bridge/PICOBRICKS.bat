@@ -17,7 +17,7 @@ echo.
 echo ================= PicoBricks bridge =================
 echo  1  Sample wall in RoboDK simulation        (needs a RoboDK licence)
 echo  2  Listen for headset, PRINT only           (test Wi-Fi)
-echo  3  Listen for headset, GHOST ROBOT in the headset (nothing real moves)
+echo  3  Listen for headset, GHOST ROBOT only     (nothing real moves; M = back to menu)
 echo  4  Replay last headset layout in RoboDK   (needs a RoboDK licence)
 echo  ------------- at the REAL robot, in this order -------------
 echo  c  Robot check: read joints + position     (nothing moves)
@@ -26,8 +26,7 @@ echo  6  Hover above both calibration points      (REAL robot moves, slowly)
 echo  7  Gripper test: close, then open           (REAL robot)
 echo  t  TEST WALL without headset: ONE brick   (REAL robot, test_wall_lama.json)
 echo  w  TEST WALL without headset: full wall   (REAL robot)
-echo  8  Headset wall: ONE brick only             (REAL robot)
-echo  9  Headset wall: full wall                  (REAL robot)
+echo  9  HEADSET WALLS on the REAL robot: asks each time  y = all / 1 = first brick / n = no / m = menu
 echo  q  Quit
 set /p C=Choice:
 if "%C%"=="1" %PY% picobricks_bridge.py run --file sample_layout.json
@@ -40,7 +39,6 @@ if "%C%"=="6" %PY% picobricks_bridge.py corners --backend urscript --real
 if "%C%"=="7" (%PY% picobricks_bridge.py grip close --real & %PY% picobricks_bridge.py grip open --real)
 if /i "%C%"=="t" %PY% picobricks_bridge.py run --backend urscript --real --one --file test_wall_lama.json
 if /i "%C%"=="w" %PY% picobricks_bridge.py run --backend urscript --real --file test_wall_lama.json
-if "%C%"=="8" %PY% picobricks_bridge.py run --backend urscript --real --one
 if "%C%"=="9" %PY% picobricks_bridge.py run --backend urscript --real
 if /i "%C%"=="q" exit /b
 goto menu

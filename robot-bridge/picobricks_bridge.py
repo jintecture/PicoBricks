@@ -598,13 +598,30 @@ BACKENDS = {"robodk": RoboDKBackend, "urscript": URScriptBackend, "print": Print
 
 # ---------------- commands ----------------
 def confirm(args, n):
+    """-> "all", "one" (first brick only), "no", or "menu" (stop listening, back to the menu)."""
     if args.yes:
-        return True
+        return "all"
     if args.real:
-        return input("Build %d bricks on the REAL robot? Speed slider low, e-stop in hand. [y/N] " % n).strip().lower() == "y"
+        a = input("Build on the REAL robot?  y = all %d bricks   1 = first brick only   n = no   m = back to menu\n"
+                  "(speed slider low, e-stop in hand): " % n).strip().lower()
+        return {"y": "all", "1": "one", "m": "menu"}.get(a, "no")
     # Asking in the simulation too gives the user time to take the headset off and watch the screen (Jin, 19 Oct).
     # Remember: a new wall from the headset is only built after answering here.
-    return input("Run %d bricks in the simulation? [Y/n] " % n).strip().lower() != "n"
+    a = input("Run %d bricks in the simulation? [Y/n]  m = back to menu: " % n).strip().lower()
+    return {"n": "no", "m": "menu"}.get(a, "all")
+
+
+def menu_key_pressed():
+    """True if M was pressed in the black window (Windows), to go back to the menu while waiting for a wall."""
+    try:
+        import msvcrt
+    except ImportError:
+        return False
+    hit = False
+    while msvcrt.kbhit():
+        if msvcrt.getwch().lower() == "m":
+            hit = True
+    return hit
 
 
 # ---------------- ghost preview: the robot's movements as joint angles (own UR5 maths, no RoboDK) ----------------
@@ -728,7 +745,13 @@ def handle(layout, tf, backend, args, sock=None, addr=None):
         send_preview(layout, tf, jobs, backend, sock, addr, start)
     if isinstance(backend, GhostBackend):
         return                                    # preview only, nothing else moves
-    if confirm(args, len(jobs)):
+    choice = confirm(args, len(jobs))
+    if choice == "menu":
+        return "menu"
+    if choice == "one" and len(jobs) > 1:
+        jobs = jobs[:1]
+        log("ONE BRICK: only %s is built" % jobs[0][0])
+    if choice in ("all", "one"):
         try:
             backend.run(jobs)
         except OSError as e:                      # no network connection to the robot
@@ -752,7 +775,7 @@ def cmd_run(args):
     except OSError:
         ips = ["?"]
     log("listening on UDP %d - build a wall in the headset (A = OK). Laptop IPs: %s" % (UDP_PORT, ", ".join(ips)))
-    log("(Ctrl+C = stop listening and go back to the menu)")
+    log("(press M = back to the menu)")
     last_key = None
     # Wait in 1-second steps: a plain wait doesn't notice Ctrl+C on Windows until a message arrives
     sock.settimeout(1.0)
@@ -760,6 +783,9 @@ def cmd_run(args):
         try:
             data, addr = sock.recvfrom(65535)
         except socket.timeout:
+            if menu_key_pressed():
+                log("back to the menu")
+                return
             continue
         except KeyboardInterrupt:
             log("stopped listening")
@@ -789,7 +815,10 @@ def cmd_run(args):
         log("from headset", addr[0])
         with open(os.path.join(HERE, "last_layout.json"), "w") as f:
             json.dump(layout, f, indent=2)       # replay later with --file last_layout.json
-        handle(layout, tf, backend, args, sock, addr[0])
+        if handle(layout, tf, backend, args, sock, addr[0]) == "menu":
+            log("back to the menu")
+            return
+        log("waiting for the next wall from the headset (M = back to the menu)")
 
 
 def cmd_corners(args):
