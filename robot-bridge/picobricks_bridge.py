@@ -558,7 +558,11 @@ class URScriptBackend:
     def run(self, jobs):
         # Exactly the joint angles the ghost robot played in the headset (same maths), not targets the robot's
         # controller solves its own way: what you saw is what it does.
-        self.send(self.joint_moves(preview(jobs, self.tf, getattr(self, "start", None))))
+        start = getattr(self, "start", None)
+        if start and kin.elbow_height(start) < ELBOW_MIN_Z:
+            raise ValueError("the robot is standing with its elbow low (%.0f mm). Move it up first on the pendant "
+                             "(Move tab, or a safe home position), then build again" % kin.elbow_height(start))
+        self.send(self.joint_moves(preview(jobs, self.tf, start)))
 
     def hover(self, pts):
         # Joint moves from our own UR5 maths, so this also tests that our maths matches the real robot
