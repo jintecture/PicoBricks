@@ -120,11 +120,28 @@ def solutions(flange):
     return out
 
 
-def inverse(flange, seed_deg):
+def elbow_height(joints_deg):
+    """Height of the elbow (mm, robot base frame) for these joint angles."""
+    T = mul(_link(0, math.radians(joints_deg[0])), _link(1, math.radians(joints_deg[1])))
+    return T[2][3]
+
+
+def safe_shape(sol_rad, min_elbow_z):
+    """Elbow UP (above min_elbow_z) and wrist 2 the normal way round (0..180 deg) for a tool pointing down.
+    Other shapes reach the same point but can drop the elbow onto the table (22 Oct: it hit the table)."""
+    q = [math.degrees(a) for a in sol_rad]
+    w2 = (q[4] + 180) % 360 - 180
+    return elbow_height(q) >= min_elbow_z and 0 < w2 < 180
+
+
+def inverse(flange, seed_deg, min_elbow_z=None):
     """Joint angles (degrees) closest to seed_deg that reach this flange pose, or None if unreachable.
-    Each joint is shifted by whole turns to be as close to the seed as possible (UR joints turn +-360 deg)."""
+    Each joint is shifted by whole turns to be as close to the seed as possible (UR joints turn +-360 deg).
+    min_elbow_z: only accept 'elbow up' arm shapes with the elbow at least this high (mm) and a normal wrist."""
     best, best_cost = None, None
     for sol in solutions(flange):
+        if min_elbow_z is not None and not safe_shape(sol, min_elbow_z):
+            continue
         q = []
         for a, s in zip(sol, seed_deg):
             d = math.degrees(a)

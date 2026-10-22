@@ -46,6 +46,7 @@ LAMA_WIDTH = 1348.0          # mm, the real LAMA table's front edge (tape, 21 Oc
 UDP_PORT = 5005
 PREVIEW_PORT = 5006     # the headset listens here for the robot movements (ghost UR5 preview, GhostPlayer.cs)
 PREVIEW_STEPS = 4       # straight (MoveL) moves are sent as this many in-between poses
+ELBOW_MIN_Z = 150.0     # mm: only "elbow up" arm shapes, elbow at least this high above the robot base (safety, 22 Oct)
 
 # Gripper (soft/parallel gripper picking the brick from the top)
 GRIP_DO = 4             # digital output 4 closes the LAMA gripper, off opens it (pendant I/O tab, 21 Oct)
@@ -566,7 +567,7 @@ class URScriptBackend:
         lines = []
         for p in pts:
             flange = kin.mul(kin.tcp_pose(p[0], p[1], p[2] + 30, self.tf.yaw0), kin.transl(0, 0, -TOOL_LENGTH))
-            q = kin.inverse(flange, q)
+            q = kin.inverse(flange, q, ELBOW_MIN_Z)
             if q is None:
                 sys.exit("can't reach above the corner %s - check calib.json" % p)
             lines += ["  movej([%s], a=%.3f, v=%.3f)" % (",".join("%.5f" % math.radians(x) for x in q), a, v),
@@ -640,7 +641,7 @@ def preview(jobs, tf, start=None):
     def ik(T, seed):
         x, y, z, yaw = T
         flange = kin.mul(kin.tcp_pose(x, y, z, yaw), kin.transl(0, 0, -TOOL_LENGTH))
-        q = kin.inverse(flange, seed)
+        q = kin.inverse(flange, seed, ELBOW_MIN_Z)
         if q is None:
             raise ValueError("the robot can't reach x %.0f y %.0f z %.0f mm" % (x, y, z))
         return q
@@ -661,7 +662,8 @@ def preview(jobs, tf, start=None):
     add(q)
     cx, cy, cz = tf.point(0, 300, TRAVEL_Z)
     try:
-        q = ik((cx, cy, cz, tf.yaw0 + 90), q)
+        # arm shape chosen from the known ready pose (elbow up), not from wherever the robot happens to be
+        q = ik((cx, cy, cz, tf.yaw0 + 90), [float(v) for v in HOME_JOINTS])
         add(q)
     except ValueError:
         pass
