@@ -103,7 +103,9 @@ public class GhostPlayer : MonoBehaviour
             if (!string.IsNullOrEmpty(msg.error))
             {
                 Stop();
-                label.text = "Robot preview: " + msg.error + "\nDraw again (TRIGGER)";
+                Debug.LogWarning("PicoBricks: robot preview failed: " + msg.error); // details for staff (log / bridge window)
+                label.text = "Something went wrong\nTRIGGER = draw your wall again";
+                VoiceGuide.Play("error");
                 continue;
             }
             if (msg.frames != null && msg.frames.Length > 0) Play(msg);
@@ -134,7 +136,8 @@ public class GhostPlayer : MonoBehaviour
 
         next = 0;
         BeginMove();
-        label.text = "Robot preview from RoboDK\n(bricks back in the tray first)";
+        label.text = "Rehearsal: this is how I will build your wall";
+        VoiceGuide.Play("ghost_start");
     }
 
     void BeginMove()
@@ -154,7 +157,7 @@ public class GhostPlayer : MonoBehaviour
             if (sender != null && sender.TryGetPickPose(f.brick, out var p, out var r)) b.SetPositionAndRotation(p, r);
             carried = b;
             carryOffset = robot.Flange.worldToLocalMatrix * b.localToWorldMatrix;
-            label.text = $"Robot preview: picking {f.brick}  ({bricksDone + 1}/{bricksTotal})";
+            label.text = $"Brick {bricksDone + 1} of {bricksTotal}";
             pause = gripPause;
         }
         else if (f.grip == "open")
@@ -163,7 +166,7 @@ public class GhostPlayer : MonoBehaviour
             if (carried != null && wallPoses.TryGetValue(carried.name, out var w)) carried.SetPositionAndRotation(w.pos, w.rot);
             carried = null;
             bricksDone++;
-            label.text = $"Robot preview: placed {bricksDone}/{bricksTotal}";
+            label.text = $"Brick {bricksDone} of {bricksTotal} placed";
             pause = gripPause;
         }
     }
@@ -172,7 +175,8 @@ public class GhostPlayer : MonoBehaviour
     {
         frames = null;
         carried = null;
-        label.text = "Robot preview done.\nOn the laptop: Run? [Y/n]";
+        label.text = "Rehearsal done\nOur team will now start the real robot";
+        VoiceGuide.Play("ghost_done");
     }
 
     // Stop playing (new preview or error): bricks the preview moved go back to their wall spot

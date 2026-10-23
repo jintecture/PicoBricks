@@ -58,8 +58,8 @@ public class WallBuilder : MonoBehaviour
 
     // Preview: the bricks stand where the wall will be, layers can still change. Sent: confirmed with A, the
     // wall went to the robot (the ghost UR5 builds it). Nothing goes to the robot before A in Preview.
-    enum Step { Draw, Drawing, Preview, Sent }
-    Step step = Step.Draw;
+    enum Step { Welcome, Draw, Drawing, Preview, Sent }
+    Step step = Step.Welcome;
 
     /// <summary>Raised when the user confirms the previewed wall with A: BrickSender then sends it to the robot.</summary>
     public event System.Action Confirmed;
@@ -95,13 +95,20 @@ public class WallBuilder : MonoBehaviour
         if (controls != null) controls.BricksReset -= Restart;
     }
 
+    // Start of a visit (app start, table placed, or X = staff reset for the next visitor)
     void Restart()
     {
-        step = Step.Draw;
+        step = Step.Welcome;
         curve.Clear();
         line.positionCount = 0;
         DrawBuildArea();
-        Say("Point at the table and hold the TRIGGER\nto draw where the wall goes (straight or curved)");
+        Say("Welcome!\nPress  A  to start", "welcome");
+    }
+
+    void AskToDraw()
+    {
+        step = Step.Draw;
+        Say("Draw your wall\nPoint at the table and HOLD the TRIGGER (index finger)", "draw");
     }
 
     void Update()
@@ -133,6 +140,10 @@ public class WallBuilder : MonoBehaviour
 
         switch (step)
         {
+            case Step.Welcome:
+                if (aPressed) AskToDraw();
+                break;
+
             case Step.Draw:
             case Step.Preview:
             case Step.Sent:
@@ -144,7 +155,7 @@ public class WallBuilder : MonoBehaviour
                     curve.Clear();
                     curve.Add(first);
                     step = Step.Drawing;
-                    Say("Drawing... release the trigger at the end of the wall");
+                    Say("Keep holding the trigger...\nLet go at the end of your wall");
                 }
                 else if (step == Step.Preview)
                 {
@@ -215,7 +226,7 @@ public class WallBuilder : MonoBehaviour
         {
             step = Step.Draw;
             line.positionCount = 0;
-            Say("That was too short, draw again\n(hold the TRIGGER while pointing at the table)");
+            Say("That line was too short\nHOLD the TRIGGER and draw a longer line", "too_short");
             return;
         }
         Smooth(curve, smoothingPasses);
@@ -255,14 +266,13 @@ public class WallBuilder : MonoBehaviour
     {
         if (controls != null) controls.ResetBricks(false); // start from the tray (a previous preview may differ)
         int perLayer = BrickCount / layers;
-        string layerLine = $"Layers:  <  {layers}  >   ({perLayer} bricks x {layers} high, thumbstick left/right)";
+        string layerLine = $"Your wall: {perLayer} bricks long, {layers} high";
         var plan = PlanRectangle(layers, out var wallCurve);
         if (!FitIntoArea(plan, wallCurve, out float movedCm))
         {
             previewPlan = null;
             ShowCurve(curve);
-            Say($"{layerLine}\nThis shape doesn't fit in the black area anywhere:\n" +
-                "draw a tighter curve (TRIGGER), or choose more layers");
+            Say($"{layerLine}\nToo big for the robot to reach\nTRIGGER = draw a smaller curve     THUMBSTICK = make it taller", "no_fit");
             return;
         }
 
@@ -283,8 +293,8 @@ public class WallBuilder : MonoBehaviour
 
         ShowCurve(wallCurve); // the curve at wall size, as the bricks follow it
         previewPlan = plan;
-        string moved = movedCm >= 0.5f ? $"\n(moved {movedCm:F0} cm to fit the robot's area)" : "";
-        Say($"{layerLine}{moved}\nHappy with this wall?   A = build it with the robot      TRIGGER = draw again");
+        if (movedCm >= 0.5f) Debug.Log($"PicoBricks: wall moved {movedCm:F0} cm to fit the robot's area");
+        Say($"{layerLine}\nTHUMBSTICK left / right = longer / taller\nA = build it          TRIGGER = draw again", "preview");
     }
 
     // A on the preview: the wall is final, send it to the robot (BrickSender listens to Confirmed)
@@ -293,7 +303,7 @@ public class WallBuilder : MonoBehaviour
         step = Step.Sent;
         int perLayer = BrickCount / layers;
         SavePlan(previewPlan, perLayer);
-        Say($"Wall {perLayer} x {layers} sent to the robot: watch the ghost robot build it\nTRIGGER = draw a new wall      X = bricks back");
+        Say("Watch the see-through robot\nrehearse your wall");
         Confirmed?.Invoke();
     }
 
@@ -747,8 +757,10 @@ public class WallBuilder : MonoBehaviour
             label.transform.rotation = Quaternion.LookRotation(label.transform.position - cam.transform.position);
     }
 
-    void Say(string text)
+    // Instruction text above the table, plus the matching voice line (if recorded; see VoiceGuide.cs)
+    void Say(string text, string voice = null)
     {
         if (label != null) label.text = text;
+        VoiceGuide.Play(voice);
     }
 }
