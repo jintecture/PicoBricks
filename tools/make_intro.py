@@ -37,9 +37,9 @@ W, H = 4096, 2048        # equirectangular 360 video
 # Dome of screens all around the viewer (Jin: "360 all around, like a dome, in the VR"): DOME_ROWS rows from
 # LAT_MAX above the horizon to LAT_MAX below; EQ_COLS screens around at eye level, fewer towards the top and
 # bottom (cos of the latitude), so every screen looks about the same size from inside. Rows are offset like bricks.
-DOME_ROWS = 7             # Jin 24 Oct: smaller screens, same area (was 6). 76 screens: the most for 79 videos
+DOME_ROWS = 9             # Jin 24 Oct: much smaller screens; 72 in front (+ their twins behind), at most ~76 for 79 videos
 LAT_MAX = 70.0           # deg; above/below that the dome stays black (small caps)
-EQ_COLS = 14
+EQ_COLS = 20
 GAP = 8                  # px black gap between screens
 SNIP_W, SNIP_H = 320, 240  # snippet size before it is fitted to its screen
 FPS = 30
@@ -65,20 +65,22 @@ def duration(path):
 
 
 def layout():
-    """[(x, y, w, h)] of every screen on the 360 frame (equirectangular pixels)."""
+    """[(x, y, w, h, twin_x)] of every screen on the 360 frame (equirectangular pixels). Every row has an even
+    number of screens; the screen half a turn away (twin_x, behind the viewer) shows the same video, so only the
+    front half needs its own videos (Jin, 24 Oct: nobody turns around)."""
     import math
     rows, step = [], 2 * LAT_MAX / DOME_ROWS
     for r in range(DOME_ROWS):
         top = LAT_MAX - r * step
         mid = top - step / 2
-        cols = max(4, round(EQ_COLS * math.cos(math.radians(mid))))
+        cols = max(4, 2 * round(EQ_COLS * math.cos(math.radians(mid)) / 2))
         y = int((90 - top) / 180 * H)
         h = int(step / 180 * H)
         w = W / cols
         offset = (w / 2) * (r % 2)                       # brick pattern
-        for c in range(cols):
-            x = int((c * w + offset) % W)
-            rows.append((x, y, int(w), h))
+        for c in range(cols // 2):
+            x = (c * w + offset + W / 4) % W             # the half from 90 deg left to 90 deg right is in front
+            rows.append((int(x), y, int(w), h, int((x + W / 2) % W)))
     return rows
 
 
@@ -172,7 +174,7 @@ def screen_videos(snippets, size):
     """One video per screen, following the schedule, fitted to the screen's size on the dome."""
     plan = schedule(snippets)
     screens = []
-    for scr, (_, _, sw, sh) in enumerate(layout()):
+    for scr, (_, _, sw, sh, _) in enumerate(layout()):
         tw, th = sw - GAP, sh - GAP
         tw, th = tw - tw % 2, th - th % 2
         parts = plan[scr]
@@ -197,16 +199,16 @@ def assemble(screens, size):
     """All screens on one 360 frame, fade in/out, H.264 for the headset."""
     inputs = ["-f", "lavfi", "-t", str(LENGTH), "-i", "color=black:s=%dx%d:r=%d" % (W, H, FPS)]
     chains, last = [], "[0:v]"
-    for i, (scr, (x, y, sw, sh)) in enumerate(zip(screens, layout())):
+    n = 0
+    for i, (scr, (x0, y, sw, sh, twin)) in enumerate(zip(screens, layout())):
         inputs += ["-i", scr]
-        x, y = x + GAP // 2, y + GAP // 2
-        tag = "[o%d]" % i
-        chains.append("%s[%d:v]overlay=%d:%d%s" % (last, i + 1, x, y, tag))
-        last = tag
-        if x + sw > W:                                    # screen crossing the seam behind the viewer: wrap around
-            tag2 = "[w%d]" % i
-            chains.append("%s[%d:v]overlay=%d:%d%s" % (last, i + 1, x - W, y, tag2))
-            last = tag2
+        # the screen in front and its twin behind; one crossing the seam is drawn twice (wrapped around)
+        spots = [x + dx for x in (x0, twin) for dx in ((0, -W) if x + sw > W else (0,))]
+        chains.append("[%d:v]split=%d%s" % (i + 1, len(spots), "".join("[s%d_%d]" % (i, k) for k in range(len(spots)))))
+        for k, x in enumerate(spots):
+            tag = "[o%d]" % n
+            chains.append("%s[s%d_%d]overlay=%d:%d%s" % (last, i, k, x + GAP // 2, y + GAP // 2, tag))
+            last, n = tag, n + 1
     chains.append("%sfade=t=in:st=0:d=0.3,fade=t=out:st=%.2f:d=%.2f,format=yuv420p[v]"
                   % (last, LENGTH - FADE_OUT, FADE_OUT))
     run([FFMPEG, "-y"] + inputs + ["-filter_complex", ";".join(chains), "-map", "[v]", "-an",
