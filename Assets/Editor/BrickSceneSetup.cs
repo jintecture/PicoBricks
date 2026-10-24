@@ -290,8 +290,12 @@ public static class BrickSceneSetup
         intro.title = IntroTexture("intro_name.png");
         intro.subtitle = IntroTexture("intro_sub.png");
         intro.choices = IntroTexture("intro_choices.png");
+        intro.button = IntroTexture("intro_button.png");
         intro.riser = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/intro_riser.wav");
         intro.logoSound = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/logo_dadam.wav");
+        intro.filmLength = 9.5f;   // = LENGTH in tools/make_intro.py
+        intro.distance = 3f;
+        intro.lockupWidth = 1.9f;
         if (intro.overlayShader == null || intro.logo == null)
             Debug.LogWarning("PicoBricks: intro shader or images missing (Assets/Shaders, Assets/Branding/Intro)");
     }

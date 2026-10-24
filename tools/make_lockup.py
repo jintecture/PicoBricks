@@ -76,7 +76,7 @@ if os.path.isdir(WORK):
 print("lockup, icon and video layers saved")
 
 # Layers for the headset intro (IntroSequence.cs): the three layers on canvases of the same size, so the app can
-# stack three equal quads and fade each in on its own beat; plus the choices shown under the lockup.
+# stack three equal quads and fade each in on its own beat; plus 'Press (A) to start' under the lockup.
 INTRO = os.path.join(B, "Intro")
 os.makedirs(INTRO, exist_ok=True)
 imgs, pos, size = layers(name.height)
@@ -87,21 +87,29 @@ for k, img in imgs.items():
 
 
 def choices():
+    """'Press (A) to start' (one option for now; the pavilion mode comes later). Two layers on the same canvas: the
+    text, and the A in a circle, which blinks in the app."""
     font = ImageFont.truetype(r"C:\Windows\Fonts\CascadiaMono.ttf", 96)
-    lines = [("A", "Build a wall with the robot", (204, 199, 193, 255)),
-             (None, "How we built the pavilion  (coming soon)", (124, 115, 103, 255))]
-    img = Image.new("RGBA", (2600, 420))
-    d = ImageDraw.Draw(img)
-    y = 20
-    for key, text, col in lines:
-        x = 20
-        if key:
-            d.rounded_rectangle((x, y, x + 130, y + 130), radius=28, outline=col, width=8)
-            d.text((x + 65, y + 63), key, font=font, fill=col, anchor="mm")
-        d.text((x + 190, y + 63), text, font=font, fill=col, anchor="lm")
-        y += 220
-    return img.crop(img.getbbox())
+    col = (204, 199, 193, 255)
+    W, H, R = 1200, 170, 70
+    text = Image.new("RGBA", (W, H)); button = Image.new("RGBA", (W, H))
+    d = ImageDraw.Draw(text)
+    x, cy = 10, H // 2
+    d.text((x, cy), "Press", font=font, fill=col, anchor="lm")
+    cx = x + int(d.textlength("Press ", font=font)) + R
+    b = ImageDraw.Draw(button)
+    b.ellipse((cx - R, cy - R, cx + R, cy + R), outline=col, width=8)
+    b.text((cx, cy - 4), "A", font=font, fill=col, anchor="mm")
+    d.text((cx + R + int(d.textlength(" ", font=font)), cy), "to start", font=font, fill=col, anchor="lm")
+    box = text.getbbox(); bb = button.getbbox()
+    box = (0, min(box[1], bb[1]), max(box[2], bb[2]), max(box[3], bb[3]))
+    return text.crop(box), button.crop(box)
 
 
-choices().save(os.path.join(INTRO, "intro_choices.png"))
+t, b = choices()
+t.save(os.path.join(INTRO, "intro_choices.png"))
+b.save(os.path.join(INTRO, "intro_button.png"))
+check = Image.new("RGBA", t.size, (0, 0, 0, 255)); check.alpha_composite(t); check.alpha_composite(b)
+if os.path.isdir(WORK):
+    check.convert("RGB").save(os.path.join(WORK, "choices_check.png"))
 print("intro layers saved", size)

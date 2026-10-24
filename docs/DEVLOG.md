@@ -434,6 +434,8 @@ Parjanya's bridge stays (Wi-Fi link, table frame, calibration, URScript to the r
 - WallBuilder ignores the buttons and stays silent while `IntroSequence.Playing`. X (next visitor) still goes to "Welcome! Press A", the intro only plays at app start.
 - **App name and icon:** Setup Brick Scene sets the product name `PRINT("HELLO, EARTH")³` and `app_icon.png`. Package name `com.lama.picobricks` unchanged, so the new build replaces the old app and keeps the staff calibration.
 - Checked: Unity batch setup compiles and saves the scene without errors. Not yet tested in the headset.
+- **Jin's changes (same day):** intro back to **12 s** (film 9.5 s: `make_intro.py` LENGTH 9.5, riser 9 s from git + 0.5 s lead-in); **smaller screens over the same area**: 7 rows x 14 = 76 screens (8 x 19 = 118 screens was tried, but with only 79 videos the same video then plays on two screens at once; 76 is the most that keeps the rule); **clips stay longer** (FIRST/LAST 1.8 / 0.45 s); **fade to black 0.25 s** so the logo follows straight away; **logo and text follow the head** (smoothed) and are bigger (1.9 m wide at 3 m); the choices are replaced by **"Press (A) to start"** with the **A in a blinking circle** (`intro_button.png`, own layer). The pavilion / robot choice comes later.
+- Jin's first build worked (the product name with quotes and ³ is fine on Android).
 
 ---
 

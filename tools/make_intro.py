@@ -31,20 +31,20 @@ FF_DIR = glob.glob(os.path.join(HOME, "Downloads", "ffmpeg", "ffmpeg-*", "bin"))
 FFMPEG, FFPROBE = os.path.join(FF_DIR, "ffmpeg.exe"), os.path.join(FF_DIR, "ffprobe.exe")
 
 # ---------------- settings ----------------
-LENGTH = 5.5             # s, film; + 2.5 s logo = 8 s intro (Jin, 24 Oct)
-FADE_OUT = 0.6           # s, fade to black at the end (the app then shows the logo)
+LENGTH = 9.5             # s, film; + 2.5 s logo = 12 s intro (Jin, 24 Oct)
+FADE_OUT = 0.25          # s, fade to black at the end (the app then shows the logo)
 W, H = 4096, 2048        # equirectangular 360 video
 # Dome of screens all around the viewer (Jin: "360 all around, like a dome, in the VR"): DOME_ROWS rows from
 # LAT_MAX above the horizon to LAT_MAX below; EQ_COLS screens around at eye level, fewer towards the top and
 # bottom (cos of the latitude), so every screen looks about the same size from inside. Rows are offset like bricks.
-DOME_ROWS = 6
+DOME_ROWS = 7             # Jin 24 Oct: smaller screens, same area (was 6). 76 screens: the most for 79 videos
 LAT_MAX = 70.0           # deg; above/below that the dome stays black (small caps)
 EQ_COLS = 14
 GAP = 8                  # px black gap between screens
 SNIP_W, SNIP_H = 320, 240  # snippet size before it is fitted to its screen
 FPS = 30
 SNIPPET = 1.6            # s cut from a source (longest a screen ever shows one clip)
-FIRST, LAST = 0.9, 0.22  # s per clip on a screen: slow at the start, fast at the end (film roll speeding up)
+FIRST, LAST = 1.8, 0.45  # s per clip on a screen: slow at the start, fast at the end (film roll speeding up)
 SNIP_EVERY = 2.5         # s of source video per snippet (more snippets from long videos) ...
 MAX_SNIPS = 5            # ... at most this many per video
 FACE_WEIGHT = 2          # snippets with faces are shown this many times as often
@@ -217,7 +217,7 @@ def assemble(screens, size):
 
 def preview():
     run([FFMPEG, "-y", "-i", OUT, "-vf", "scale=1280:640", "-c:v", "libx264", "-crf", "26", "-an", PREVIEW])
-    for t in (1, 3, 5):
+    for t in (2, 5, 8):
         run([FFMPEG, "-y", "-ss", str(t), "-i", OUT, "-frames:v", "1", "-vf", "scale=1600:800",
              os.path.join(BASE, "intro_frame_%ds.jpg" % t)])
     print("preview:", PREVIEW)

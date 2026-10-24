@@ -6,30 +6,31 @@ using UnityEngine.Video;
 using UnityEngine.XR;
 
 // The opening of PRINT("HELLO, EARTH")³ (Jin, 23-24 Oct), played once when the app starts:
-//   0 - 5.5 s  the 360 film of the group (StreamingAssets/intro_360.mp4, made by tools/make_intro.py) all around the
+//   0 - 9.5 s  the 360 film of the group (StreamingAssets/intro_360.mp4, made by tools/make_intro.py) all around the
 //              visitor, with the riser sound
-//   5.5 s      black; the logo appears on the "da", the name on the "dam", then "Creative Robotics 2026"
-//   8 s        the choices: A = build a wall with the robot (pavilion mode: coming soon) + voice "intro_welcome"
+//   9.5 s      black; the logo appears on the "da", the name on the "dam", then "Creative Robotics 2026"
+//   12 s       "Press (A) to start", the A blinking in its circle, + voice "intro_welcome" (the pavilion / robot choice comes later)
 //   A          everything fades back to the real room and the wall builder asks the visitor to draw.
+// The logo and text follow the head (Jin, 24 Oct), with a little smoothing so they don't jitter.
 // Everything is drawn with PicoBricks/IntroOverlay (on top of the table, labels and ghost robot). If the film can't
 // be loaded the intro starts at the logo. WallBuilder waits for Finished.
 public class IntroSequence : MonoBehaviour
 {
     public Shader overlayShader;
-    public Texture2D logo, title, subtitle, choices;
+    public Texture2D logo, title, subtitle, choices, button;
     public AudioClip riser, logoSound;
     public string videoFile = "intro_360.mp4";
-    public float filmLength = 5.5f;
+    public float filmLength = 9.5f;
     [Tooltip("Distance of the logo in front of the visitor (m) and its width")]
-    public float distance = 3f, lockupWidth = 1.5f;
+    public float distance = 3f, lockupWidth = 1.9f;
 
     /// <summary>True from app start until the visitor has chosen; other scripts keep quiet meanwhile.</summary>
     public static bool Playing { get; private set; }
     public static event Action Finished;
 
-    Transform cam, sphere;
+    Transform cam, sphere, anchor;
     Material sphereMat;
-    Material logoMat, titleMat, subMat, choicesMat;
+    Material logoMat, titleMat, subMat, choicesMat, buttonMat;
     RenderTexture filmTexture;
     VideoPlayer video;
     AudioSource music, hit;
@@ -56,16 +57,19 @@ public class IntroSequence : MonoBehaviour
         sphere.SetPositionAndRotation(cam.position, yaw);
 
         // Logo, name, subtitle (same-size layers, stacked) and the choices underneath, straight ahead
-        var anchor = new GameObject("Intro Lockup").transform;
+        anchor = new GameObject("Intro Lockup").transform;
         made.Add(anchor.gameObject);
-        anchor.SetPositionAndRotation(cam.position + yaw * Vector3.forward * distance + Vector3.up * 0.1f, yaw);
+        anchor.SetPositionAndRotation(cam.TransformPoint(0f, 0f, distance), cam.rotation);
         logoMat = Layer(anchor, logo, lockupWidth, 0f, 4001);
         titleMat = Layer(anchor, title, lockupWidth, 0f, 4002);
         subMat = Layer(anchor, subtitle, lockupWidth, 0f, 4003);
         float lockupHeight = logo != null ? lockupWidth * logo.height / logo.width : 0.2f;
-        float choicesWidth = lockupWidth * 0.75f;
+        // "Press (A) to start": text and the circled A are two layers of the same size; the A blinks
+        float choicesWidth = lockupWidth * 0.4f;
         float choicesHeight = choices != null ? choicesWidth * choices.height / choices.width : 0.1f;
-        choicesMat = Layer(anchor, choices, choicesWidth, -(lockupHeight / 2f + 0.14f + choicesHeight / 2f), 4004);
+        float choicesY = -(lockupHeight / 2f + 0.16f + choicesHeight / 2f);
+        choicesMat = Layer(anchor, choices, choicesWidth, choicesY, 4004);
+        buttonMat = Layer(anchor, button, choicesWidth, choicesY, 4005);
 
         music = gameObject.AddComponent<AudioSource>();
         hit = gameObject.AddComponent<AudioSource>();
@@ -116,6 +120,7 @@ public class IntroSequence : MonoBehaviour
 
         StartCoroutine(Fade(choicesMat, 0f, 1f, 0.5f, 0f));
         VoiceGuide.Play("intro_welcome");
+        float blinkStart = Time.time;
 
         // Wait for A (a press that starts now, not one still held)
         bool wasDown = true;
@@ -125,12 +130,15 @@ public class IntroSequence : MonoBehaviour
             right.TryGetFeatureValue(CommonUsages.primaryButton, out bool a);
             if (a && !wasDown) break;
             wasDown = a;
+            var c = buttonMat.color;                              // blink: bright / dim once a second
+            c.a = 0.2f + 0.8f * (0.5f - 0.5f * Mathf.Cos(2f * Mathf.PI * (Time.time - blinkStart)));
+            buttonMat.color = c;
             yield return null;
         }
 
         // Back to the real room
         const float fadeOut = 0.8f;
-        foreach (var m in new[] { logoMat, titleMat, subMat, choicesMat, sphereMat })
+        foreach (var m in new[] { logoMat, titleMat, subMat, choicesMat, buttonMat, sphereMat })
             StartCoroutine(Fade(m, 1f, 0f, fadeOut, 0f));
         yield return new WaitForSeconds(fadeOut + 0.05f);
         foreach (var go in made) Destroy(go);
@@ -141,7 +149,14 @@ public class IntroSequence : MonoBehaviour
 
     void LateUpdate()
     {
-        if (sphere != null && cam != null) sphere.position = cam.position;   // the dome moves with the head, not turns
+        if (cam == null) return;
+        if (sphere != null) sphere.position = cam.position;   // the dome moves with the head, not turns
+        if (anchor != null)                                    // the logo stays in front of the eyes
+        {
+            float k = 1f - Mathf.Exp(-12f * Time.deltaTime);
+            anchor.position = Vector3.Lerp(anchor.position, cam.TransformPoint(0f, 0f, distance), k);
+            anchor.rotation = Quaternion.Slerp(anchor.rotation, cam.rotation, k);
+        }
     }
 
     Material NewMaterial(Texture tex, Color colour, int queue)
