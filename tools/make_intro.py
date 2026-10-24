@@ -37,23 +37,24 @@ W, H = 4096, 2048        # equirectangular 360 video
 # Dome of screens all around the viewer (Jin: "360 all around, like a dome, in the VR"): DOME_ROWS rows from
 # LAT_MAX above the horizon to LAT_MAX below; EQ_COLS screens around at eye level, fewer towards the top and
 # bottom (cos of the latitude), so every screen looks about the same size from inside. Rows are offset like bricks.
-DOME_ROWS = 9             # Jin 24 Oct: much smaller screens; 72 in front (+ their twins behind), at most ~76 for 79 videos
+DOME_ROWS = 18            # Jin 24 Oct: half-size screens (was 9 x 20); 278 in front + their twins behind
 LAT_MAX = 70.0           # deg; above/below that the dome stays black (small caps)
-EQ_COLS = 20
-GAP = 8                  # px black gap between screens
+EQ_COLS = 40
+GAP = 5                  # px black gap between screens
 SNIP_W, SNIP_H = 320, 240  # snippet size before it is fitted to its screen
 FPS = 30
 SNIPPET = 1.6            # s cut from a source (longest a screen ever shows one clip)
 FIRST, LAST = 1.8, 0.45  # s per clip on a screen: slow at the start, fast at the end (film roll speeding up)
 SNIP_EVERY = 2.5         # s of source video per snippet (more snippets from long videos) ...
 MAX_SNIPS = 5            # ... at most this many per video
+MIN_APART = 55.0         # deg: the same video may play on several screens at once, but never closer than this
 FACE_WEIGHT = 2          # snippets with faces are shown this many times as often
 SEED = 7                 # change for a different random order
 # ------------------------------------------
 
 
-def run(cmd):
-    r = subprocess.run(cmd, capture_output=True, text=True)
+def run(cmd, cwd=None):
+    r = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd)
     if r.returncode != 0:
         sys.exit("ffmpeg failed:\n" + " ".join(cmd) + "\n" + r.stderr[-2000:])
     return r.stdout
@@ -133,13 +134,32 @@ def cut_snippets():
     return snippets, (tw, th)
 
 
+def directions():
+    """Unit vector to the centre of every screen in front (for the MIN_APART rule)."""
+    import math
+    out = []
+    for x, y, w, h, _ in layout():
+        lon = math.radians((x + w / 2) / W * 360 - 180)
+        lat = math.radians(90 - (y + h / 2) / H * 180)
+        out.append((math.cos(lat) * math.sin(lon), math.sin(lat), math.cos(lat) * math.cos(lon)))
+    return out
+
+
 def schedule(snippets):
     """Which snippet each screen shows when. Every screen: black until it switches on, then clips that get shorter
-    and shorter. Rule: a source video is never on two screens at the same time. Face snippets are preferred
-    (FACE_WEIGHT) and the least-used snippets go first, so everything gets shown."""
+    and shorter. Rule: a source video may be on several screens at the same time (there are more screens than
+    videos), but never on two screens closer than MIN_APART degrees. Face snippets are preferred (FACE_WEIGHT) and
+    the least-used snippets go first, so everything gets shown."""
+    import math
     rnd = random.Random(SEED)
+    dirs = directions()
+    min_dot = math.cos(math.radians(MIN_APART))
+
+    def near(a, b):
+        return sum(p * q for p, q in zip(dirs[a], dirs[b])) > min_dot
+
     slots = []                                            # (start, end, screen)
-    n_screens = len(layout())
+    n_screens = len(dirs)
     for scr in range(n_screens):
         t = rnd.uniform(0.0, 1.6)                         # screens switch on one by one
         while t < LENGTH - 1e-3:
@@ -152,21 +172,20 @@ def schedule(snippets):
     plan = {scr: [] for scr in range(n_screens)}
     for t0, t1, scr in slots:
         def free(src):
-            return all(e <= t0 + 1e-6 or s0 >= t1 - 1e-6 for s0, e in busy.get(src, []))
+            return all(e <= t0 + 1e-6 or s0 >= t1 - 1e-6 or not near(scr, o) for s0, e, o in busy.get(src, []))
         cands = [x for x in snippets if free(x[1])] or snippets
         cands.sort(key=lambda x: (used.get(x[0], 0) / (FACE_WEIGHT if x[2] else 1), rnd.random()))
         clip = cands[0]
         used[clip[0]] = used.get(clip[0], 0) + 1
-        busy.setdefault(clip[1], []).append((t0, t1))
+        busy.setdefault(clip[1], []).append((t0, t1, scr))
         plan[scr].append((t0, t1, clip[0], clip[1]))
     # double-check the rule
     clashes = 0
-    for scr in plan:
-        for t0, t1, _, src in plan[scr]:
-            clashes += sum(1 for o in plan if o != scr for a, b, _, s2 in plan[o]
-                           if s2 == src and a < t1 - 1e-6 and b > t0 + 1e-6)
-    print("schedule: %d clips on %d screens, %d moments with the same video twice"
-          % (len(slots), n_screens, clashes // 2))
+    for src, spans in busy.items():
+        for i, (a0, a1, sa) in enumerate(spans):
+            clashes += sum(1 for b0, b1, sb in spans[i + 1:] if a0 < b1 - 1e-6 and b0 < a1 - 1e-6 and near(sa, sb))
+    print("schedule: %d clips on %d screens, %d moments with the same video closer than %d deg"
+          % (len(slots), n_screens, clashes, MIN_APART))
     return plan
 
 
@@ -179,7 +198,7 @@ def screen_videos(snippets, size):
         tw, th = tw - tw % 2, th - th % 2
         parts = plan[scr]
         start = parts[0][0] if parts else LENGTH
-        out = os.path.join(WORK, "screen_%02d.mp4" % scr)
+        out = os.path.join(WORK, "screen_%03d.mp4" % scr)
         inputs = ["-f", "lavfi", "-t", "%.3f" % max(start, 1.0 / FPS), "-i", "color=black:s=%dx%d:r=%d" % (tw, th, FPS)]
         chains = ["[0:v]setsar=1[c0]"]
         for j, (t0, t1, clip, _) in enumerate(parts):
@@ -196,12 +215,13 @@ def screen_videos(snippets, size):
 
 
 def assemble(screens, size):
-    """All screens on one 360 frame, fade in/out, H.264 for the headset."""
+    """All screens on one 360 frame, fade in/out, H.264 for the headset. Hundreds of screens: the inputs are given
+    by file name inside WORK and the filter graph is read from a file (Windows limits a command line to 32k)."""
     inputs = ["-f", "lavfi", "-t", str(LENGTH), "-i", "color=black:s=%dx%d:r=%d" % (W, H, FPS)]
     chains, last = [], "[0:v]"
     n = 0
     for i, (scr, (x0, y, sw, sh, twin)) in enumerate(zip(screens, layout())):
-        inputs += ["-i", scr]
+        inputs += ["-i", os.path.basename(scr)]
         # the screen in front and its twin behind; one crossing the seam is drawn twice (wrapped around)
         spots = [x + dx for x in (x0, twin) for dx in ((0, -W) if x + sw > W else (0,))]
         chains.append("[%d:v]split=%d%s" % (i + 1, len(spots), "".join("[s%d_%d]" % (i, k) for k in range(len(spots)))))
@@ -211,9 +231,12 @@ def assemble(screens, size):
             last, n = tag, n + 1
     chains.append("%sfade=t=in:st=0:d=0.3,fade=t=out:st=%.2f:d=%.2f,format=yuv420p[v]"
                   % (last, LENGTH - FADE_OUT, FADE_OUT))
-    run([FFMPEG, "-y"] + inputs + ["-filter_complex", ";".join(chains), "-map", "[v]", "-an",
+    graph = os.path.join(WORK, "assemble_graph.txt")
+    with open(graph, "w") as f:
+        f.write(";\n".join(chains))
+    run([FFMPEG, "-y"] + inputs + ["-/filter_complex", graph, "-map", "[v]", "-an",
          "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-profile:v", "high", "-level", "5.2",
-         "-r", str(FPS), "-movflags", "+faststart", OUT])
+         "-r", str(FPS), "-movflags", "+faststart", OUT], cwd=WORK)
     print("film:", OUT)
 
 
