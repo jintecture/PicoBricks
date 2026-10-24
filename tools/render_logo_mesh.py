@@ -7,8 +7,9 @@ from PIL import Image
 
 B = os.path.join(os.path.dirname(__file__), "..", "Assets", "Branding")
 SIZE, SS = 1200, 2                  # output size, supersampling
-ELEVATION = 20.0                    # deg above the horizon
+ELEVATION = 35.0                    # deg above the horizon (Jin: a 3D view, not an elevation)
 FOV = 24.0                          # deg
+TURN = 198.0                        # deg about the vertical: a flat side faces the viewer, turned 10 deg for depth (Jin, 24 Oct; legs at -98/22/142 deg in the model)
 LIGHT = np.array([-0.5, -0.6, 0.75])  # towards the light: front-left, above
 
 
@@ -58,6 +59,10 @@ def frame(forward):
 
 def main():
     pos, nrm, faces = load()
+    a = math.radians(TURN)
+    rot = np.array([[math.cos(a), -math.sin(a), 0], [math.sin(a), math.cos(a), 0], [0, 0, 1]])
+    mid = (pos.min(0) + pos.max(0)) / 2
+    pos = (pos - mid) @ rot.T + mid; nrm = nrm @ rot.T
     lo, hi = pos.min(0), pos.max(0); c = (lo + hi) / 2; size = np.linalg.norm(hi - lo)
     e = math.radians(ELEVATION)
     fwd, right, up = frame(np.array([0, math.cos(e), -math.sin(e)]))
