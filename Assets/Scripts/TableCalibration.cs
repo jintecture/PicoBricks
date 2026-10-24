@@ -6,8 +6,8 @@ using UnityEngine.XR;
 //  - LAMA table (fixedSize, with the ghost robot): 2 points, the FRONT-RIGHT corner (next to the robot) and any point
 //    further left on the front edge. The table always gets the real LAMA size, anchored at that right corner, so robot,
 //    tray and drawing area sit where they will be on the real table, even when testing on a smaller table at home.
-// STAFF ONLY: hold B (right controller) for 3 seconds to start, trigger = record a point. The result is saved on the
-// headset and loaded every time the app starts, so visitors never calibrate.
+// STAFF ONLY: home screen > Settings > A (HomeMenu calls Begin), trigger = record a point, B = cancel. The result is
+// saved on the headset and loaded every time the app starts, so visitors never calibrate (and never see it).
 public class TableCalibration : MonoBehaviour
 {
     [Tooltip("Parent of Table, Bricks and Floor; its origin is the middle of the table's front edge, on the top surface")]
@@ -53,10 +53,7 @@ public class TableCalibration : MonoBehaviour
 
     readonly Vector3[] points = new Vector3[4];
     int step = -1; // -1 = not calibrating
-    bool bWasDown, triggerWasDown;
-    float bDownSince;
-    bool staffHoldUsed;
-    const float StaffHoldSeconds = 3f;
+    bool triggerWasDown;
 
     /// <summary>True while the user is touching calibration points (other tools should ignore the trigger).</summary>
     public bool IsCalibrating => step >= 0;
@@ -102,9 +99,22 @@ public class TableCalibration : MonoBehaviour
         label.alignment = TextAlignment.Center;
         label.text = "";
 
-        // Visitors never calibrate: staff place the table once, it is saved on the headset and loaded here
-        if (!LoadSaved())
-            label.text = "STAFF: hold B for 3 seconds\nto place the table";
+        // Visitors never calibrate: staff place the table once (Settings), it is saved on the headset and loaded here
+        LoadSaved();
+    }
+
+    /// <summary>Start calibrating (Settings page, A).</summary>
+    public void Begin()
+    {
+        step = 0;
+        label.text = "Table calibration   (B = cancel)\n" + CurrentPrompts[0];
+    }
+
+    /// <summary>Stop without changing the table (B, or leaving the settings).</summary>
+    public void Cancel()
+    {
+        step = -1;
+        label.text = "";
     }
 
     System.Collections.IEnumerator ClearLabelAfter(float seconds)
@@ -151,20 +161,9 @@ public class TableCalibration : MonoBehaviour
 
         var right = InputDevices.GetDeviceAtXRNode(XRNode.RightHand);
         if (!right.isValid) return;
-        right.TryGetFeatureValue(CommonUsages.secondaryButton, out bool bDown);
         right.TryGetFeatureValue(CommonUsages.triggerButton, out bool triggerDown);
 
-        // Staff mode: hold B for 3 seconds (visitors don't); a short press does nothing
-        if (bDown && !bWasDown) bDownSince = Time.time;
-        bool staffHold = bDown && Time.time - bDownSince >= StaffHoldSeconds && !staffHoldUsed;
-        if (!bDown) staffHoldUsed = false;
-        if (staffHold)
-        {
-            staffHoldUsed = true;
-            step = 0;
-            label.text = "STAFF: table calibration\n" + CurrentPrompts[0];
-        }
-        else if (triggerDown && !triggerWasDown && step >= 0)
+        if (triggerDown && !triggerWasDown && step >= 0)
         {
             points[step] = TipPosition;
             step++;
@@ -180,7 +179,6 @@ public class TableCalibration : MonoBehaviour
             }
         }
 
-        bWasDown = bDown;
         triggerWasDown = triggerDown;
     }
 
@@ -190,7 +188,7 @@ public class TableCalibration : MonoBehaviour
         edge.y = 0f;
         if (edge.magnitude < 0.1f)
         {
-            label.text = "Front corners too close together\nhold B (3 s) = try again";
+            label.text = "Front corners too close together\nA = try again";
             return;
         }
 
@@ -203,14 +201,14 @@ public class TableCalibration : MonoBehaviour
         float height = top - floorPoint.y;
         if (depth < 0.1f || height < 0.1f)
         {
-            label.text = "That didn't look like a table\n(check the corner order)  hold B (3 s) = try again";
+            label.text = "That didn't look like a table\n(check the corner order)  A = try again";
             return;
         }
 
         Vector3 frontMiddle = (frontLeft + frontRight) / 2f;
         frontMiddle.y = top;
         Apply(frontMiddle, forward, width, depth, height,
-              $"STAFF: table placed ({width * 100f:F0} x {depth * 100f:F0} cm, {height * 100f:F0} cm high)\nand saved on the headset. Hold B (3 s) = redo");
+              $"Table placed ({width * 100f:F0} x {depth * 100f:F0} cm, {height * 100f:F0} cm high)\nand saved on the headset. A = redo, B = back");
     }
 
     // LAMA table: known size; the front-right corner fixes the position and height, the second point the direction
@@ -220,7 +218,7 @@ public class TableCalibration : MonoBehaviour
         edge.y = 0f;
         if (edge.magnitude < 0.2f)
         {
-            label.text = "Points too close together: touch the front edge\nat least 20 cm left of the corner.  hold B (3 s) = try again";
+            label.text = "Points too close together: touch the front edge\nat least 20 cm left of the corner.  A = try again";
             return;
         }
         Vector3 right = edge.normalized;
@@ -231,7 +229,7 @@ public class TableCalibration : MonoBehaviour
         // (without this the whole table, and every brick, sat 1 cm too high, 22 Oct)
         frontMiddle.y = (frontRight.y + onFrontEdge.y) / 2f - TipRadius;
         Apply(frontMiddle, forward, width, depth, height,
-              $"STAFF: table placed ({width * 100f:F0} x {depth * 100f:F0} cm)\nand saved on the headset. Hold B (3 s) = redo");
+              $"Table placed ({width * 100f:F0} x {depth * 100f:F0} cm)\nand saved on the headset. A = redo, B = back");
     }
 
     void Apply(Vector3 frontMiddle, Vector3 forward, float width, float depth, float height, string message, bool save = true)

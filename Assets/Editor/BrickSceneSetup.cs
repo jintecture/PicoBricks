@@ -51,6 +51,10 @@ public static class BrickSceneSetup
     // Robot reach for walls, measured on the table from the base (m). The UR5 maths says 0.11-0.81 with the gripper
     // pointing down; inside 20 cm the robot's own base is in the way, beyond 75 cm the arm is nearly stretched out
     const float MinReach = 0.20f, MaxReach = 0.88f; // 0.90 at table height = 1150 mm from the table edge (measured, 21 Oct) minus 2 cm
+    // Drawing pad for the robot wall (Jin, 24 Oct, DisassemblyModel.3dm: the four squares): the camera vision and the
+    // disassembly part only reach this 40 x 40 cm square, 50-90 cm to the left of the robot base, centred on it
+    // front-to-back. The reach check (WallBuilder.Allowed) still cuts off what the arm can't reach.
+    const float PadNearFromRobot = 0.50f, PadFarFromRobot = 0.90f, PadHalfDepth = 0.20f;
 
     // Same as the menu, without opening the Unity window:
     // Unity.exe -batchmode -quit -projectPath <PicoBricks> -executeMethod BrickSceneSetup.SetupFromCommandLine
@@ -257,18 +261,25 @@ public static class BrickSceneSetup
             if (trayMesh != null) wall.traySize = new Vector2(trayMesh.bounds.size.x, trayMesh.bounds.size.z);
             wall.lineMaterial = GetOrCreateMaterial("Assets/Materials/WallLine.mat", new Color(0.1f, 0.85f, 1f), unlit: true);
             wall.zoneMaterial = GetOrCreateMaterial("Assets/Materials/BuildArea.mat", new Color(1f, 1f, 1f), unlit: true);
-            // No fixed drawing rectangle: the whole table, minus tray and unreachable parts (WallBuilder.Allowed).
-            // Set explicitly: the component is reused between runs, so an old value would otherwise stay in the scene
-            // (that kept the old 44 x 27 cm rectangle alive after 20 Oct)
+            // Drawing pad: set explicitly every run (the component is reused, an old value would otherwise stay)
             wall.drawArea = default;
             if (ghost != null)
             {
                 ghost.Component.passthrough = passthrough;
                 wall.robot = ghost.Component;
                 wall.zoneMaterial = GetOrCreateMaterial("Assets/Materials/DrawArea.mat", Color.black, unlit: true);
+                Vector3 robotBase = ghost.Component.baseInWorkspace;
+                wall.drawArea = new Rect(robotBase.x - PadFarFromRobot, robotBase.z - PadHalfDepth,
+                                         PadFarFromRobot - PadNearFromRobot, 2f * PadHalfDepth);
+                Debug.Log($"PicoBricks: drawing pad x {wall.drawArea.xMin:F3}..{wall.drawArea.xMax:F3}, " +
+                          $"z {wall.drawArea.yMin:F3}..{wall.drawArea.yMax:F3} m");
             }
 
             SetupIntro(rig);
+            var pavilion = SetupPavilion(rig, workspace.transform, table.transform, calibration,
+                                         wall.lineMaterial, calibration.tipMaterial);
+            SetupHomeMenu(rig, wall, pavilion, calibration, controls,
+                          new[] { ghost != null ? ghost.Component.transform : null, tray.transform });
         }
         SetBranding();
 
@@ -300,10 +311,54 @@ public static class BrickSceneSetup
             Debug.LogWarning("PicoBricks: intro shader or images missing (Assets/Shaders, Assets/Branding/Intro)");
     }
 
-    // Sharp, see-through, not squeezed to a power of two; mipmaps so the text doesn't shimmer in the headset
-    static Texture2D IntroTexture(string file)
+    // "Design our pavilion" (PavilionBuilder.cs): the three-legged brick from tools/make_pavilion_brick.py
+    static PavilionBuilder SetupPavilion(GameObject rig, Transform workspace, Transform table, TableCalibration calibration,
+                                         Material lineMat, Material pullMat)
     {
-        var path = IntroFolder + file;
+        var pavilion = rig.GetComponent<PavilionBuilder>();
+        if (pavilion == null) pavilion = Undo.AddComponent<PavilionBuilder>(rig);
+        pavilion.workspace = workspace;
+        pavilion.table = table;
+        pavilion.rightController = calibration.rightController;
+        pavilion.calibration = calibration;
+        pavilion.brickMesh = AssetDatabase.LoadAssetAtPath<TextAsset>("Assets/Models/pavilion_brick.txt");
+        pavilion.brickMaterial = GetOrCreateMaterial("Assets/Materials/PavilionBrick.mat", new Color(0.62f, 0.60f, 0.58f));
+        pavilion.lineMaterial = lineMat;
+        pavilion.handleMaterial = pullMat;
+        if (pavilion.brickMesh == null) Debug.LogWarning("PicoBricks: Assets/Models/pavilion_brick.txt missing");
+        return pavilion;
+    }
+
+    // Home screen after the intro (HomeMenu.cs); images from tools/make_lockup.py
+    const string MenuFolder = "Assets/Branding/Menu/";
+    static void SetupHomeMenu(GameObject rig, WallBuilder wall, PavilionBuilder pavilion, TableCalibration calibration,
+                              BrickControls controls, Transform[] robotOnly)
+    {
+        var menu = rig.GetComponent<HomeMenu>();
+        if (menu == null) menu = Undo.AddComponent<HomeMenu>(rig);
+        menu.overlayShader = AssetDatabase.LoadAssetAtPath<Shader>("Assets/Shaders/IntroOverlay.shader");
+        menu.logo = IntroTexture("intro_logo.png");
+        menu.title = IntroTexture("intro_name.png");
+        menu.subtitle = IntroTexture("intro_sub.png");
+        menu.options = new[]
+        {
+            IntroTexture("menu_robot.png", MenuFolder), IntroTexture("menu_pavilion.png", MenuFolder),
+            IntroTexture("menu_settings.png", MenuFolder),
+        };
+        menu.hint = IntroTexture("menu_hint.png", MenuFolder);
+        menu.settingsTitle = IntroTexture("settings_title.png", MenuFolder);
+        menu.settingsHint = IntroTexture("settings_hint.png", MenuFolder);
+        menu.wall = wall;
+        menu.pavilion = pavilion;
+        menu.calibration = calibration;
+        menu.controls = controls;
+        menu.robotOnly = robotOnly;
+    }
+
+    // Sharp, see-through, not squeezed to a power of two; mipmaps so the text doesn't shimmer in the headset
+    static Texture2D IntroTexture(string file, string folder = IntroFolder)
+    {
+        var path = folder + file;
         if (AssetImporter.GetAtPath(path) is TextureImporter imp &&
             (imp.npotScale != TextureImporterNPOTScale.None || !imp.alphaIsTransparency || imp.wrapMode != TextureWrapMode.Clamp))
         {

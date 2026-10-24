@@ -58,8 +58,8 @@ public class WallBuilder : MonoBehaviour
 
     // Preview: the bricks stand where the wall will be, layers can still change. Sent: confirmed with A, the
     // wall went to the robot (the ghost UR5 builds it). Nothing goes to the robot before A in Preview.
-    enum Step { Welcome, Draw, Drawing, Preview, Sent }
-    Step step = Step.Welcome;
+    enum Step { Draw, Drawing, Preview, Sent }
+    Step step = Step.Draw;
 
     /// <summary>Raised when the user confirms the previewed wall with A: BrickSender then sends it to the robot.</summary>
     public event System.Action Confirmed;
@@ -87,25 +87,31 @@ public class WallBuilder : MonoBehaviour
         if (calibration != null) calibration.Placed += Restart;
         if (controls != null) controls.BricksReset += Restart;
         Restart();
-        // The visitor already chose "build a wall" with A in the intro: go straight to drawing
-        if (IntroSequence.Playing) IntroSequence.Finished += AskToDraw;
     }
 
     void OnDestroy()
     {
         if (calibration != null) calibration.Placed -= Restart;
         if (controls != null) controls.BricksReset -= Restart;
-        IntroSequence.Finished -= AskToDraw;
     }
 
-    // Start of a visit (app start, table placed, or X = staff reset for the next visitor)
+    // Shown only in "Build a wall with the robot" on the home screen (HomeMenu); opening it starts a new wall
+    bool shown;
+    public void SetShown(bool on)
+    {
+        bool wasShown = shown;
+        shown = on;
+        if (on && !wasShown && line != null) Restart();
+    }
+
+    // Start of a wall (mode opened, table placed, or X = staff reset for the next visitor). The visitor already chose
+    // this on the home screen, so it goes straight to drawing (the old "Welcome! Press A" step is the home screen now).
     void Restart()
     {
-        step = Step.Welcome;
         curve.Clear();
         line.positionCount = 0;
         DrawBuildArea();
-        Say("Welcome!\nPress  A  to start", "welcome");
+        AskToDraw();
     }
 
     void AskToDraw()
@@ -131,8 +137,13 @@ public class WallBuilder : MonoBehaviour
         triggerWasDown = trigger;
         aWasDown = a;
 
-        // While the intro plays or the table is being calibrated, the buttons belong to them
-        if (IntroSequence.Playing || (calibration != null && calibration.IsCalibrating))
+        // Lines and outline only in this mode
+        line.enabled = shown;
+        zone.enabled = shown;
+        if (outlineRenderer != null) outlineRenderer.enabled = shown;
+
+        // Another mode, the intro, or the table being calibrated: the buttons belong to them
+        if (!shown || IntroSequence.Playing || (calibration != null && calibration.IsCalibrating))
         {
             label.gameObject.SetActive(false);
             ShowPointer(false);
@@ -143,10 +154,6 @@ public class WallBuilder : MonoBehaviour
 
         switch (step)
         {
-            case Step.Welcome:
-                if (aPressed) AskToDraw();
-                break;
-
             case Step.Draw:
             case Step.Preview:
             case Step.Sent:
@@ -637,6 +644,7 @@ public class WallBuilder : MonoBehaviour
     // Black outline of where a wall can go (the real shape: table within the robot's reach, minus the tray and
     // the space right around the robot), as a flat mesh on the table. Traced on a 1 cm grid.
     Mesh outlineMesh;
+    MeshRenderer outlineRenderer;
     void DrawAreaOutline()
     {
         if (outlineMesh == null)
@@ -645,7 +653,7 @@ public class WallBuilder : MonoBehaviour
             go.transform.SetParent(workspace, false);
             outlineMesh = new Mesh { name = "Build Area Outline", indexFormat = UnityEngine.Rendering.IndexFormat.UInt32 };
             go.AddComponent<MeshFilter>().sharedMesh = outlineMesh;
-            var mr = go.AddComponent<MeshRenderer>();
+            var mr = outlineRenderer = go.AddComponent<MeshRenderer>();
             mr.sharedMaterial = zoneMaterial != null ? zoneMaterial : lineMaterial;
             mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         }
@@ -764,6 +772,6 @@ public class WallBuilder : MonoBehaviour
     void Say(string text, string voice = null)
     {
         if (label != null) label.text = text;
-        if (!IntroSequence.Playing) VoiceGuide.Play(voice);   // the intro has its own sound
+        if (shown && !IntroSequence.Playing) VoiceGuide.Play(voice);   // quiet while another mode is open
     }
 }

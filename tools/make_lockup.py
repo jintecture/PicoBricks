@@ -113,3 +113,39 @@ check = Image.new("RGBA", t.size, (0, 0, 0, 255)); check.alpha_composite(t); che
 if os.path.isdir(WORK):
     check.convert("RGB").save(os.path.join(WORK, "choices_check.png"))
 print("intro layers saved", size)
+
+
+# Home menu (HomeMenu.cs): one image per line of text, all rendered at the same height so they line up in the app
+def line_image(text, col=(204, 199, 193, 255), size=96, button=None):
+    """One line of Cascadia Mono, full line height (so every line scales the same); `button` = letter drawn in a
+    circle where '()' stands in the text."""
+    font = ImageFont.truetype(r"C:\Windows\Fonts\CascadiaMono.ttf", size)
+    H = int(size * 1.5)
+    img = Image.new("RGBA", (int(font.getlength(text)) + 40, H))
+    d = ImageDraw.Draw(img)
+    if button and "()" in text:
+        before, after = text.split("()")
+        x = 10
+        d.text((x, H // 2), before, font=font, fill=col, anchor="lm")
+        R = int(size * 0.55)
+        cx = x + int(font.getlength(before)) + R
+        d.ellipse((cx - R, H // 2 - R, cx + R, H // 2 + R), outline=col, width=max(3, size // 12))
+        d.text((cx, H // 2 - 3), button, font=font, fill=col, anchor="mm")
+        d.text((cx + R + int(font.getlength(" ")) // 2, H // 2), after, font=font, fill=col, anchor="lm")
+    else:
+        d.text((10, H // 2), text, font=font, fill=col, anchor="lm")
+    box = img.getbbox()
+    return img.crop((0, 0, box[2] + 10, H))
+
+
+DIM = (124, 115, 103, 255)
+MENU = os.path.join(B, "Menu")
+os.makedirs(MENU, exist_ok=True)
+for name, text in (("menu_robot", "Build a wall with the robot"),
+                   ("menu_pavilion", "Design our pavilion"),
+                   ("menu_settings", "Settings")):
+    line_image(text).save(os.path.join(MENU, name + ".png"))
+line_image("THUMBSTICK up / down  \u00b7  () = choose", DIM, button="A").save(os.path.join(MENU, "menu_hint.png"))
+line_image("Table calibration", size=96).save(os.path.join(MENU, "settings_title.png"))
+line_image("() = start   \u00b7   B = back", DIM, button="A").save(os.path.join(MENU, "settings_hint.png"))
+print("menu images saved")
