@@ -422,9 +422,10 @@ Parjanya's bridge stays (Wi-Fi link, table frame, calibration, URScript to the r
 
 ### Same day: new name, logo and opening sound
 - **Name:** `PRINT("HELLO, EARTH")³`, Cascadia Mono SemiBold, colour **#7C7367** (palette #CCC7C1 / #B2ABA2 / #7C7367 / #B19B7A / #BBA583). Text image: `Assets/Branding/logo_hello_earth.png`.
-- **Logo brick:** a three-legged triangular block with an arch in the middle of every side and a triangle opening on top, seen from the front. Rendered by `tools/render_logo_brick.py` (own small ray-marching renderer in numpy, soft white "Arctic" look, transparent background) → `logo_brick_front.png`. (`make_logo_brick.py` is the same model for Rhino 8, not used: Rhino didn't finish headless.)
-- **Lockup + icon:** `tools/make_lockup.py` → `logo_lockup.png` (brick next to the name) and `app_icon.png` (brick on #7C7367).
-- **Sounds:** `Assets/Audio/intro_riser.wav` (under the 360° film), `intro_impact.wav` (cut to black), `logo_dadam.wav` (made by `tools/make_logo_sound.py`: a short low "da", then a big "dam" chord with a sub boom and reverb; the brick appears on "da", the name on "dam").
+- **Logo:** Jin's model `Assets/Branding/logo.3dm` (24 Oct; first a stand-in brick I modelled). Headless Rhino can only draw wireframes, so `tools/render_logo_3dm.py` (run in Rhino) exports the mesh and `tools/render_logo_mesh.py` renders it: seen from the front, a little above, soft white with shadows, transparent background → `logo_brick_front.png`.
+- **Lockup + icon:** `tools/make_lockup.py` → `logo_lockup.png` (logo, then the name with "Creative Robotics 2026" in small letters underneath, #B2ABA2) and `app_icon.png` (logo on #7C7367).
+- **Sounds:** `Assets/Audio/intro_riser.wav` (under the 360° film), `intro_impact.wav` (cut to black), `logo_dadam.wav` (made by `tools/make_logo_sound.py`: a short low "da", then a big "dam" chord with a sub boom and reverb; the logo appears on "da", the name on "dam", then the subtitle).
+- **Shortened to 8 s (24 Oct):** 5.5 s film (`make_intro.py` LENGTH 5.5) + 2.5 s logo; riser trimmed to 5.5 s, the impact sound is no longer used.
 - Preview (outside the repo): `Downloads\HelloEarth_intro\intro_preview_logo.mp4`.
 
 ---
