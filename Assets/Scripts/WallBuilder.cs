@@ -87,12 +87,15 @@ public class WallBuilder : MonoBehaviour
         if (calibration != null) calibration.Placed += Restart;
         if (controls != null) controls.BricksReset += Restart;
         Restart();
+        // The visitor already chose "build a wall" with A in the intro: go straight to drawing
+        if (IntroSequence.Playing) IntroSequence.Finished += AskToDraw;
     }
 
     void OnDestroy()
     {
         if (calibration != null) calibration.Placed -= Restart;
         if (controls != null) controls.BricksReset -= Restart;
+        IntroSequence.Finished -= AskToDraw;
     }
 
     // Start of a visit (app start, table placed, or X = staff reset for the next visitor)
@@ -128,8 +131,8 @@ public class WallBuilder : MonoBehaviour
         triggerWasDown = trigger;
         aWasDown = a;
 
-        // While the table is being calibrated, the trigger belongs to the calibration
-        if (calibration != null && calibration.IsCalibrating)
+        // While the intro plays or the table is being calibrated, the buttons belong to them
+        if (IntroSequence.Playing || (calibration != null && calibration.IsCalibrating))
         {
             label.gameObject.SetActive(false);
             ShowPointer(false);
@@ -761,6 +764,6 @@ public class WallBuilder : MonoBehaviour
     void Say(string text, string voice = null)
     {
         if (label != null) label.text = text;
-        VoiceGuide.Play(voice);
+        if (!IntroSequence.Playing) VoiceGuide.Play(voice);   // the intro has its own sound
     }
 }

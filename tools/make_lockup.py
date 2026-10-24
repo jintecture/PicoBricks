@@ -74,3 +74,34 @@ if os.path.isdir(WORK):
         check.alpha_composite(Image.open(os.path.join(WORK, "v_%s.png" % k)))
     check.convert("RGB").save(os.path.join(WORK, "lockup_check.png"))
 print("lockup, icon and video layers saved")
+
+# Layers for the headset intro (IntroSequence.cs): the three layers on canvases of the same size, so the app can
+# stack three equal quads and fade each in on its own beat; plus the choices shown under the lockup.
+INTRO = os.path.join(B, "Intro")
+os.makedirs(INTRO, exist_ok=True)
+imgs, pos, size = layers(name.height)
+for k, img in imgs.items():
+    canvas = Image.new("RGBA", size)
+    canvas.alpha_composite(img, pos[k])
+    canvas.save(os.path.join(INTRO, "intro_%s.png" % k))
+
+
+def choices():
+    font = ImageFont.truetype(r"C:\Windows\Fonts\CascadiaMono.ttf", 96)
+    lines = [("A", "Build a wall with the robot", (204, 199, 193, 255)),
+             (None, "How we built the pavilion  (coming soon)", (124, 115, 103, 255))]
+    img = Image.new("RGBA", (2600, 420))
+    d = ImageDraw.Draw(img)
+    y = 20
+    for key, text, col in lines:
+        x = 20
+        if key:
+            d.rounded_rectangle((x, y, x + 130, y + 130), radius=28, outline=col, width=8)
+            d.text((x + 65, y + 63), key, font=font, fill=col, anchor="mm")
+        d.text((x + 190, y + 63), text, font=font, fill=col, anchor="lm")
+        y += 220
+    return img.crop(img.getbbox())
+
+
+choices().save(os.path.join(INTRO, "intro_choices.png"))
+print("intro layers saved", size)

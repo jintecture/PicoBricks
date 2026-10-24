@@ -6,7 +6,8 @@ A moment without a line stays silent. Keep lines short: the visitor is reading t
 
 | key | Moment | On-screen text (already in the app) | Voice line (Jin) |
 | --- | --- | --- | --- |
-| welcome | App starts / next visitor | Welcome! Press A to start | |
+| intro_welcome | End of the opening, under the logo (app start) | A = Build a wall with the robot · How we built the pavilion (coming soon) | e.g. "Welcome to Print Hello Earth, Creative Robotics 2026. Press A to build a wall with the robot." |
+| welcome | Next visitor (staff pressed X) | Welcome! Press A to start | |
 | draw | Ready to draw | Draw your wall. Point at the table and HOLD the TRIGGER (index finger) | |
 | too_short | The line was too short | That line was too short. HOLD the TRIGGER and draw a longer line | |
 | preview | The bricks show the wall | Your wall: … THUMBSTICK left / right = longer / taller. A = build it, TRIGGER = draw again | |

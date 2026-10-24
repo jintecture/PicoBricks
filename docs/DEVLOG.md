@@ -422,11 +422,18 @@ Parjanya's bridge stays (Wi-Fi link, table frame, calibration, URScript to the r
 
 ### Same day: new name, logo and opening sound
 - **Name:** `PRINT("HELLO, EARTH")³`, Cascadia Mono SemiBold, colour **#7C7367** (palette #CCC7C1 / #B2ABA2 / #7C7367 / #B19B7A / #BBA583). Text image: `Assets/Branding/logo_hello_earth.png`.
-- **Logo:** Jin's model `Assets/Branding/logo.3dm` (24 Oct; first a stand-in brick I modelled). Headless Rhino can only draw wireframes, so `tools/render_logo_3dm.py` (run in Rhino) exports the mesh and `tools/render_logo_mesh.py` renders it: seen from the front, a little above, soft white with shadows, transparent background → `logo_brick_front.png`.
+- **Logo:** Jin's model `Assets/Branding/logo.3dm` (24 Oct; first a stand-in brick I modelled). Headless Rhino can only draw wireframes, so `tools/render_logo_3dm.py` (run in Rhino) exports the mesh and `tools/render_logo_mesh.py` renders it: a 3D view from 35° above with a flat side to the front (turned 10° for depth), soft white with shadows, transparent background → `logo_brick_front.png`.
 - **Lockup + icon:** `tools/make_lockup.py` → `logo_lockup.png` (logo, then the name with "Creative Robotics 2026" in small letters underneath, #B2ABA2) and `app_icon.png` (logo on #7C7367).
 - **Sounds:** `Assets/Audio/intro_riser.wav` (under the 360° film), `intro_impact.wav` (cut to black), `logo_dadam.wav` (made by `tools/make_logo_sound.py`: a short low "da", then a big "dam" chord with a sub boom and reverb; the logo appears on "da", the name on "dam", then the subtitle).
 - **Shortened to 8 s (24 Oct):** 5.5 s film (`make_intro.py` LENGTH 5.5) + 2.5 s logo; riser trimmed to 5.5 s, the impact sound is no longer used.
 - Preview (outside the repo): `Downloads\HelloEarth_intro\intro_preview_logo.mp4`.
+
+## 2026-10-24: The opening in the app
+- **`IntroSequence.cs`** (on the rig, added by Setup Brick Scene) plays once at app start: the 360 film (`Assets/StreamingAssets/intro_360.mp4`) on a sphere around the visitor with the riser → black, logo on "da", name on "dam", "Creative Robotics 2026" → after 2.5 s the choices **A = Build a wall with the robot** / *How we built the pavilion (coming soon)* and the voice line `intro_welcome` → A fades back to the room and the wall builder asks to draw.
+- Drawn with **`Assets/Shaders/IntroOverlay.shader`** (unlit, on top of everything, stereo-instanced for both eyes), so the table, labels and ghost robot stay hidden during the intro. If the film can't load within 6 s the intro starts at the logo.
+- WallBuilder ignores the buttons and stays silent while `IntroSequence.Playing`. X (next visitor) still goes to "Welcome! Press A", the intro only plays at app start.
+- **App name and icon:** Setup Brick Scene sets the product name `PRINT("HELLO, EARTH")³` and `app_icon.png`. Package name `com.lama.picobricks` unchanged, so the new build replaces the old app and keeps the staff calibration.
+- Checked: Unity batch setup compiles and saves the scene without errors. Not yet tested in the headset.
 
 ---
 

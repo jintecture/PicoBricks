@@ -267,12 +267,62 @@ public static class BrickSceneSetup
                 wall.robot = ghost.Component;
                 wall.zoneMaterial = GetOrCreateMaterial("Assets/Materials/DrawArea.mat", Color.black, unlit: true);
             }
+
+            SetupIntro(rig);
         }
+        SetBranding();
 
         var scene = EditorSceneManager.GetActiveScene();
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
         Debug.Log("PicoBricks: scene set up and saved.");
+    }
+
+    // Opening of the app (IntroSequence.cs): 360 film, logo + name, choices. Images from tools/make_lockup.py,
+    // sounds from tools/make_logo_sound.py, film in StreamingAssets from tools/make_intro.py.
+    const string IntroFolder = "Assets/Branding/Intro/";
+    static void SetupIntro(GameObject rig)
+    {
+        var intro = rig.GetComponent<IntroSequence>();
+        if (intro == null) intro = Undo.AddComponent<IntroSequence>(rig);
+        intro.overlayShader = AssetDatabase.LoadAssetAtPath<Shader>("Assets/Shaders/IntroOverlay.shader");
+        intro.logo = IntroTexture("intro_logo.png");
+        intro.title = IntroTexture("intro_name.png");
+        intro.subtitle = IntroTexture("intro_sub.png");
+        intro.choices = IntroTexture("intro_choices.png");
+        intro.riser = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/intro_riser.wav");
+        intro.logoSound = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/logo_dadam.wav");
+        if (intro.overlayShader == null || intro.logo == null)
+            Debug.LogWarning("PicoBricks: intro shader or images missing (Assets/Shaders, Assets/Branding/Intro)");
+    }
+
+    // Sharp, see-through, not squeezed to a power of two; mipmaps so the text doesn't shimmer in the headset
+    static Texture2D IntroTexture(string file)
+    {
+        var path = IntroFolder + file;
+        if (AssetImporter.GetAtPath(path) is TextureImporter imp &&
+            (imp.npotScale != TextureImporterNPOTScale.None || !imp.alphaIsTransparency || imp.wrapMode != TextureWrapMode.Clamp))
+        {
+            imp.textureType = TextureImporterType.Default;
+            imp.alphaIsTransparency = true;
+            imp.npotScale = TextureImporterNPOTScale.None;
+            imp.mipmapEnabled = true;
+            imp.wrapMode = TextureWrapMode.Clamp;
+            imp.maxTextureSize = 4096;
+            imp.SaveAndReimport();
+        }
+        return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+    }
+
+    // App name and icon on the headset (Jin, 23-24 Oct). The package name (com.lama.picobricks) stays, so the
+    // new build replaces the old app and keeps the saved table calibration.
+    static void SetBranding()
+    {
+        PlayerSettings.productName = "PRINT(\"HELLO, EARTH\")³";
+        var icon = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Branding/app_icon.png");
+        if (icon != null)
+            PlayerSettings.SetIcons(UnityEditor.Build.NamedBuildTarget.Unknown, new[] { icon }, IconKind.Any);
+        AssetDatabase.SaveAssets();
     }
 
     // Same as ticking "Video Seethrough" in the PICO project settings (adds the camera permission to the build)
