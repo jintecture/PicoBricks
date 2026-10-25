@@ -455,6 +455,8 @@ Parjanya's bridge stays (Wi-Fi link, table frame, calibration, URScript to the r
 - **Pavilion: real materials** (Jin's photos): printed **gray clay**, printed **brown clay**, **gray to red** (over the height), and the **rammed earth** piece: solid, same rounded-triangle outline and height as the printed brick, no arches, with horizontal earth layers (procedural mesh + layer texture in `PavilionBuilder.cs`).
 - **Voice lines** (Jin's text): "Draw a curve inside the black rectangle." (robot mode), "The ghost UR5 will now start to move." (rehearsal), "Caution! The physical UR5 will now move." (the bridge sends it to the headset after "y" and waits 3 s before the robot moves), "Design our pavilion on your own. Draw any curve, and get started!" (pavilion mode). Windows voice Zira for now.
 - Checked: compiles with Unity's compiler; bridge syntax OK. Needs Setup Brick Scene + Ctrl+B; anchors, restart and voices not yet tested in the headset.
+- **Floating pavilion bricks fixed** (Jin's screenshot): bricks were placed per small step along the curve, so on bends the row-2 legs missed the legs below. Now like the GH script: the curve is walked in straight chords of 3X; on each chord one row-1 brick (at 2X) and one row-2 brick (at X, turned) share the side legs, and chords share a leg at their joint, plus GH's extra first brick. Checked numerically on a 35 cm radius arc: every row-2 leg lands on a row-1 leg (0.0 mm).
+- **More rows:** no fixed 7; rows can go up until the top row is a single brick (the limit follows the length of the line).
 
 ---
 

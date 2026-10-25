@@ -6,12 +6,12 @@ using UnityEngine.XR;
 // the whole table (no robot, so reach doesn't matter). Same logic as "Stacking 3d modules.gh" (Matthias Nahum /
 // the team's Grasshopper file):
 //  - the module is the three-legged brick of the logo (Assets/Models/pavilion_brick.txt, tools/make_pavilion_brick.py)
-//  - along the drawn curve a point is set every X (= distance from the brick's middle to a leg centre, 12.8 mm in
-//    the model), measured as a straight line ("Py3" script: circles along the curve)
-//  - row 1: a brick on every 3rd point (0, 3, 6, ...), one leg pointing along the curve
-//  - row 2: on points 2, 5, 8, ..., turned 60 degrees, one brick height up: its legs stand on the legs below
+//  - the curve is walked in straight chords of 3X (X = distance from the brick's middle to a leg centre, 12.8 mm in
+//    the model; "Py3" script: circles along the curve); on each chord one row-1 and one row-2 brick (see Rebuild)
+//  - row 1: one leg pointing along the curve; row 2: turned 60 degrees, one brick height up, its legs exactly on the
+//    legs below
 //  - every next row repeats the row two below, minus its first and last brick ("Cull Index 0, -1"), so the
-//    pavilion steps in at both ends; up to 7 rows
+//    pavilion steps in at both ends; as many rows as the line allows (until the top row is 1 brick)
 // Right controller:
 //  hold TRIGGER on the table      = draw the line (a new pavilion)
 //  TRIGGER on an orange ball      = drag it: the line and the pavilion follow (pull points)
@@ -32,7 +32,6 @@ public class PavilionBuilder : MonoBehaviour
     public float brickScale = 2.5f;
     [Tooltip("Middle of the brick to the centre of a leg, in the model (m)")]
     public float legSpacing = 0.0128f;
-    public int maxRows = 7;
     public float edgeMargin = 0.03f;
 
     // Colours from Jin's photos of the real pieces (24-25 Oct): printed light clay, printed brown clay, rammed earth
@@ -46,6 +45,7 @@ public class PavilionBuilder : MonoBehaviour
     Step step = Step.Draw;
     bool shown;
     int rows = 3;
+    int rowLimit = 1;   // as many rows as the line allows: until the top row is a single brick (Jin, 25 Oct)
 
     class Brick { public GameObject go; public Renderer renderer; public MeshFilter filter; public int row, index; }
 
@@ -215,7 +215,7 @@ public class PavilionBuilder : MonoBehaviour
         else if (step == Step.Edit && stickY)
         {
             int before = rows;
-            rows = Mathf.Clamp(rows + (stick.y > 0f ? 1 : -1), 1, maxRows);
+            rows = Mathf.Clamp(rows + (stick.y > 0f ? 1 : -1), 1, rowLimit);
             if (rows != before) Rebuild();
         }
     }
@@ -288,27 +288,35 @@ public class PavilionBuilder : MonoBehaviour
         var curve = CatmullRom(pulls, 16);
         ShowLine(curve);
 
-        // Points every X along the curve (straight-line distance, forward only), and the direction to the next one
-        var points = new List<Vector3> { curve[0] };
+        // Like the GH "Py3" script: walk along the curve in straight CHORDS of 3X ("D = 2X + Y", X = Y), from joint to
+        // joint (joints on the curve). On each chord, from its joint J along its direction u:
+        //   row-2 brick at J + X  (one leg pointing back, standing on J)
+        //   row-1 brick at J + 2X (one leg pointing forward, on the next joint)
+        // Both stand on the same straight chord, so their side legs (at 1.5X) coincide exactly, and neighbouring chords
+        // share a leg at their joint: every leg stands on a leg below, also where the line bends. (The first version
+        // placed each brick along its own little step of the curve; on bends the legs missed, bricks floated, 25 Oct.)
+        var joints = new List<Vector3> { curve[0] };
         int progress = 0;
-        while (points.Count < 2000 && StepAlong(curve, points[points.Count - 1], X, ref progress, out var next))
-            points.Add(next);
-        var dirs = new List<Vector3>();
-        for (int i = 0; i < points.Count; i++)
+        while (joints.Count < 1000 && StepAlong(curve, joints[joints.Count - 1], 3f * X, ref progress, out var next))
+            joints.Add(next);
+        var rowA = new List<(Vector3 pos, Quaternion rot)>();   // rows 1, 3, 5, 7
+        var rowB = new List<(Vector3 pos, Quaternion rot)>();   // rows 2, 4, 6 (turned 60 degrees)
+        for (int k = 0; k < joints.Count - 1; k++)
         {
-            Vector3 d = i < points.Count - 1 ? points[i + 1] - points[i] : points[i] - points[Mathf.Max(0, i - 1)];
-            d.y = 0f;
-            dirs.Add(d.sqrMagnitude > 1e-8f ? d.normalized : Vector3.forward);
+            Vector3 u = joints[k + 1] - joints[k];
+            u.y = 0f;
+            u = u.sqrMagnitude > 1e-8f ? u.normalized : Vector3.forward;
+            var forward = Quaternion.LookRotation(u, Vector3.up);
+            if (k == 0) rowA.Add((joints[0] - u * X, forward));     // GH's extra first brick: carries row 2's first leg
+            rowA.Add((joints[k] + u * (2f * X), forward));
+            rowB.Add((joints[k] + u * X, forward * Quaternion.Euler(0f, 180f, 0f)));   // = 60 degrees for 3 legs
         }
 
-        // Row 1 on points 0, 3, 6 ...; row 2 on 2, 5, 8 ... turned; each next row = the row two below minus its ends
-        var rowA = new List<int>();
-        var rowB = new List<int>();
-        for (int i = 0; i < points.Count; i++)
-        {
-            if (i % 3 == 0) rowA.Add(i);
-            else if (i % 3 == 2) rowB.Add(i);
-        }
+        // Each next row = the row two below minus its first and last brick (GH "Cull Index 0, -1"). Highest possible:
+        // up to the row that still has 1 brick, so a longer line can go higher (no fixed 7 rows any more)
+        rowLimit = 1;
+        while ((rowLimit % 2 == 0 ? rowA.Count : rowB.Count) - 2 * (rowLimit / 2) >= 1) rowLimit++;
+        rows = Mathf.Clamp(rows, 1, rowLimit);
         used = 0;
         for (int r = 0; r < rows; r++)
         {
@@ -316,14 +324,11 @@ public class PavilionBuilder : MonoBehaviour
             int cull = r / 2;
             for (int k = cull; k < source.Count - cull; k++)
             {
-                int i = source[k];
-                var rotation = Quaternion.LookRotation(dirs[i], Vector3.up);
-                if (r % 2 == 1) rotation *= Quaternion.Euler(0f, 180f, 0f);   // = 60 degrees for a 3-legged brick
                 var brick = NextBrick();
                 brick.row = r;
                 brick.index = k;
-                brick.go.transform.localPosition = points[i] + Vector3.up * (r * RowHeight + 0.0005f);
-                brick.go.transform.localRotation = rotation;
+                brick.go.transform.localPosition = source[k].pos + Vector3.up * (r * RowHeight + 0.0005f);
+                brick.go.transform.localRotation = source[k].rot;
                 Recolour(brick, false);
             }
         }
