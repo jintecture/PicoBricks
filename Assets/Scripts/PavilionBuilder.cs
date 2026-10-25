@@ -45,7 +45,8 @@ public class PavilionBuilder : MonoBehaviour
     Step step = Step.Draw;
     bool shown;
     int rows = 3;
-    int rowLimit = 1;   // as many rows as the line allows: until the top row is a single brick (Jin, 25 Oct)
+    int rowLimit = 1;
+    const float LabelHeight = 0.4f;   // the instruction text's bottom edge, above the middle of the table (m)   // as many rows as the line allows: until the top row is a single brick (Jin, 25 Oct)
 
     class Brick { public GameObject go; public Renderer renderer; public MeshFilter filter; public int row, index; }
 
@@ -411,7 +412,8 @@ public class PavilionBuilder : MonoBehaviour
         if (step == Step.Edit && pulls.Count > 0 && root != null && root.gameObject.activeInHierarchy) Rebuild();
     }
 
-    // Three small bricks above the selected one: gray, brown, gray-to-red; the current choice is bigger
+    // The four choices as small bricks in a row just under the instruction text (above the selected brick they
+    // overlapped the pavilion, 25 Oct), left to right in the order of the text; the current choice is bigger
     void ShowSelection()
     {
         colours.TryGetValue((selected.row, selected.index), out int option);
@@ -419,12 +421,12 @@ public class PavilionBuilder : MonoBehaviour
         Vector3 across = cam != null ? workspace.InverseTransformDirection(cam.transform.right) : Vector3.right;
         across.y = 0f;
         across = across.sqrMagnitude > 1e-6f ? across.normalized : Vector3.right;
-        Vector3 above = selected.go.transform.localPosition + Vector3.up * (RowHeight * 2.5f);
+        Vector3 underText = new Vector3(0f, LabelHeight - 0.08f, table.localScale.z / 2f);
         for (int i = 0; i < Options; i++)
         {
             var s = swatches[i];
             s.gameObject.SetActive(true);
-            s.localPosition = above + across * ((i - (Options - 1) / 2f) * 0.07f);
+            s.localPosition = underText + across * ((i - (Options - 1) / 2f) * 0.09f);
             s.localScale = Vector3.one * brickScale * (i == option ? 0.8f : 0.5f);
             SetLook(s.GetComponent<Renderer>(), i == RammedEarth ? Color.white : i == 2 ? Red : ColourOf(i, 0), i == RammedEarth);
         }
@@ -675,7 +677,7 @@ public class PavilionBuilder : MonoBehaviour
 
     void PlaceLabel()
     {
-        label.transform.position = workspace.TransformPoint(new Vector3(0f, 0.4f, table.localScale.z / 2f));
+        label.transform.position = workspace.TransformPoint(new Vector3(0f, LabelHeight, table.localScale.z / 2f));
         var cam = Camera.main;
         if (cam != null)
             label.transform.rotation = Quaternion.LookRotation(label.transform.position - cam.transform.position);
