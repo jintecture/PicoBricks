@@ -17,6 +17,7 @@ public class HomeMenu : MonoBehaviour
     /// <summary>What the visitor is doing now; WallBuilder and PavilionBuilder only react in their own mode.</summary>
     public static Mode Current { get; private set; } = Mode.Intro;
 
+    public IntroSequence intro;
     public Shader overlayShader;
     public Texture2D logo, title, subtitle;
     [Tooltip("Robot, pavilion, settings (in this order)")]
@@ -39,13 +40,30 @@ public class HomeMenu : MonoBehaviour
     readonly List<Material> optionMats = new List<Material>();
     readonly Dictionary<Renderer, bool> hiddenRenderers = new Dictionary<Renderer, bool>();
 
+    static HomeMenu instance;
+    const float RestartHoldSeconds = 3f;
+    float xDownSince = -1f;
+
+    void Awake() => instance = this;
+
     void Start()
     {
-        if (IntroSequence.Playing) IntroSequence.Finished += ShowMenu;
-        else ShowMenu();
+        IntroSequence.Finished += ShowMenu;
+        if (!IntroSequence.Playing) ShowMenu();
     }
 
     void OnDestroy() => IntroSequence.Finished -= ShowMenu;
+
+    /// <summary>Back to the opening for the next visitor: hold X (left controller) for 3 s, or R in the laptop
+    /// bridge window. Clears the pavilion design, puts the bricks back, keeps the table calibration.</summary>
+    public static void RestartFromIntro()
+    {
+        if (instance == null || instance.intro == null || IntroSequence.Playing) return;
+        instance.SetMode(Mode.Intro);
+        if (instance.pavilion != null) instance.pavilion.Clear();
+        if (instance.controls != null) instance.controls.ResetBricks();
+        instance.intro.Play();
+    }
 
     void Update()
     {
@@ -56,6 +74,16 @@ public class HomeMenu : MonoBehaviour
         bool aPressed = a && !aWasDown, bPressed = b && !bWasDown;
         bool pushed = Mathf.Abs(stick.y) > 0.6f, stickPressed = pushed && !stickWasPushed;
         aWasDown = a; bWasDown = b; stickWasPushed = pushed;
+
+        // Staff: hold X on the left controller for 3 seconds = start again from the opening
+        InputDevices.GetDeviceAtXRNode(XRNode.LeftHand).TryGetFeatureValue(CommonUsages.primaryButton, out bool x);
+        if (!x) xDownSince = -1f;
+        else if (xDownSince < 0f) xDownSince = Time.time;
+        else if (Time.time - xDownSince >= RestartHoldSeconds)
+        {
+            xDownSince = float.MaxValue;   // once per hold
+            RestartFromIntro();
+        }
 
         switch (Current)
         {
@@ -169,7 +197,7 @@ public class HomeMenu : MonoBehaviour
 
         foreach (var page in new[] { menuPage.transform, settingsPage.transform })
         {
-            Quad(page, null, new Vector2(1.5f, 1.05f), 0f, 4000, new Color(0f, 0f, 0f, 0.8f));   // dark panel
+            Quad(page, null, new Vector2(1.5f, 1.05f), 0f, 4000, new Color(0.03f, 0.03f, 0.03f, 0.96f));   // dark panel, nearly solid so the text reads well
             foreach (var (tex, q) in new[] { (logo, 4001), (title, 4002), (subtitle, 4003) })
                 Quad(page, tex, Size(tex, 1.1f, 0f), 0.36f, q, Color.white);
         }

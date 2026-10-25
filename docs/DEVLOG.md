@@ -447,6 +447,15 @@ Parjanya's bridge stays (Wi-Fi link, table frame, calibration, URScript to the r
 - **Design our pavilion** (`PavilionBuilder.cs`), from `Stacking 3d modules.gh` (converted with GH_IO to read it): the module is the logo brick (`Assets/Models/pavilion_brick.txt` from `tools/make_pavilion_brick.py`; leg centres 12.8 mm from the middle, GH: X = Y = 12.3); points every X along the curve (the Py3 script's circle walk); row 1 on points 0, 3, 6 ...; row 2 on 2, 5, 8 ... turned 60 degrees one brick higher (its legs stand on the legs below); each next row = the row two below minus first and last brick (Cull Index 0, -1); up to 7 rows. On the whole table, scaled x2.5 (bricks 7.5 cm). Draw = hold TRIGGER; the line gets 3-7 **pull points** (orange balls, TRIGGER + drag); THUMBSTICK up/down = rows; TRIGGER on a brick = select, THUMBSTICK left/right = **gray / brown / gray-to-red (by height)**, A = done.
 - Checked: game and editor scripts compile with Unity's compiler (Roslyn, against the project's references) while Unity was open. Needs **Setup Brick Scene** (new components) + Ctrl+B; not yet tested in the headset.
 
+## 2026-10-25: Jin's test round: fixes, exhibition restart, rammed earth, voice lines
+- **Red line on the home screen** = the rig's teleport arc (Teleport Interactor, shown when pushing the thumbstick): switched off by Setup Brick Scene.
+- **Menu panel** nearly solid (96 %), so the text reads well.
+- **Calibration remembered across restarts:** the table is now also saved as a **PICO spatial anchor** (the headset's own map of the room; `spatialAnchor` switched on in the PICO project settings by the setup). At start the anchor is loaded and the table follows it (twice a second, kept upright), also when the headset re-centres. The old saved numbers stay as a fallback. Visitors: open the app, watch the opening, build straight away.
+- **Restart for the next visitor:** hold **X (left controller) 3 s**, or press **R** in the laptop bridge window while it waits for a wall: back to the opening, pavilion cleared, bricks back, calibration kept. (Soft restart, no scene reload: BrickSender / VoiceGuide install themselves once per app run.)
+- **Pavilion: real materials** (Jin's photos): printed **gray clay**, printed **brown clay**, **gray to red** (over the height), and the **rammed earth** piece: solid, same rounded-triangle outline and height as the printed brick, no arches, with horizontal earth layers (procedural mesh + layer texture in `PavilionBuilder.cs`).
+- **Voice lines** (Jin's text): "Draw a curve inside the black rectangle." (robot mode), "The ghost UR5 will now start to move." (rehearsal), "Caution! The physical UR5 will now move." (the bridge sends it to the headset after "y" and waits 3 s before the robot moves), "Design our pavilion on your own. Draw any curve, and get started!" (pavilion mode). Windows voice Zira for now.
+- Checked: compiles with Unity's compiler; bridge syntax OK. Needs Setup Brick Scene + Ctrl+B; anchors, restart and voices not yet tested in the headset.
+
 ---
 
 ## Still to do

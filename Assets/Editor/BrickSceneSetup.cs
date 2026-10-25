@@ -353,6 +353,7 @@ public static class BrickSceneSetup
         menu.calibration = calibration;
         menu.controls = controls;
         menu.robotOnly = robotOnly;
+        menu.intro = rig.GetComponent<IntroSequence>();
     }
 
     // Sharp, see-through, not squeezed to a power of two; mipmaps so the text doesn't shimmer in the headset
@@ -384,15 +385,18 @@ public static class BrickSceneSetup
         AssetDatabase.SaveAssets();
     }
 
-    // Same as ticking "Video Seethrough" in the PICO project settings (adds the camera permission to the build)
+    // Same as ticking "Video Seethrough" in the PICO project settings (adds the camera permission to the build), and
+    // "Spatial Anchor" (the table calibration is kept as an anchor in the room, TableCalibration.cs, 25 Oct)
     static void EnablePicoVideoSeeThrough()
     {
         var settings = AssetDatabase.LoadAssetAtPath<ScriptableObject>("Assets/Resources/PXR_ProjectSetting.asset");
         if (settings == null) return;
         var so = new SerializedObject(settings);
-        var prop = so.FindProperty("videoSeeThrough");
-        if (prop == null) return;
-        prop.boolValue = true;
+        foreach (var name in new[] { "videoSeeThrough", "spatialAnchor" })
+        {
+            var prop = so.FindProperty(name);
+            if (prop != null) prop.boolValue = true;
+        }
         so.ApplyModifiedProperties();
         AssetDatabase.SaveAssets();
     }
@@ -429,7 +433,8 @@ public static class BrickSceneSetup
         // AR: the virtual world must stay locked to the real room, so switch off all of the sample rig's
         // locomotion (gravity made the rig fall onto the moved floor, thumbsticks moved/turned the world)
         foreach (var t in starterRig.GetComponentsInChildren<Transform>(true))
-            if (Array.IndexOf(new[] { "Move", "Gravity", "Turn", "Teleportation", "Climb", "Grab Move" }, t.name) >= 0)
+            // (+ the teleport arc: a red line appeared from the controller when pushing the thumbstick, 25 Oct)
+            if (Array.IndexOf(new[] { "Move", "Gravity", "Turn", "Teleportation", "Climb", "Grab Move", "Teleport Interactor" }, t.name) >= 0)
             {
                 Undo.RecordObject(t.gameObject, "Disable locomotion");
                 t.gameObject.SetActive(false);

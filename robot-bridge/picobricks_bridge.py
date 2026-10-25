@@ -616,16 +616,17 @@ def confirm(args, n):
     return {"n": "no", "m": "menu"}.get(a, "all")
 
 
-def menu_key_pressed():
-    """True if M was pressed in the black window (Windows), to go back to the menu while waiting for a wall."""
+def waiting_key():
+    """While waiting for a wall (Windows): "m" = back to the menu, "r" = headset back to the opening, else None."""
     try:
         import msvcrt
     except ImportError:
-        return False
-    hit = False
+        return None
+    hit = None
     while msvcrt.kbhit():
-        if msvcrt.getwch().lower() == "m":
-            hit = True
+        k = msvcrt.getwch().lower()
+        if k in ("m", "r"):
+            hit = k
     return hit
 
 
@@ -719,6 +720,27 @@ def send_preview(layout, tf, jobs, backend, sock, addr, start=None):
         log("!! couldn't send the preview to the headset:", e)
 
 
+def say(sock, addr, key):
+    """Ask the headset to play a voice line (VoiceGuide key, Assets/Resources/Voice/<key>)."""
+    try:
+        sock.sendto(json.dumps({"type": "say", "key": key}).encode(), (addr, PREVIEW_PORT))
+    except OSError as e:
+        log("!! couldn't reach the headset:", e)
+
+
+def restart_headset(sock, addr):
+    """R while waiting: the headset goes back to the opening (next visitor). Straight to the last headset that sent a
+    wall, and as a broadcast on the hotspot in case none did yet."""
+    msg = json.dumps({"type": "restart"}).encode()
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+    for target in ([addr] if addr else []) + ["255.255.255.255", "192.168.137.255"]:
+        try:
+            sock.sendto(msg, (target, PREVIEW_PORT))
+        except OSError:
+            pass
+    log("headset: back to the opening")
+
+
 def handle(layout, tf, backend, args, sock=None, addr=None):
     # Simulation: stand RoboDK's robot where the headset's ghost robot stands (the real robot uses calib.json)
     robot = layout.get("robot") or {}
@@ -758,6 +780,10 @@ def handle(layout, tf, backend, args, sock=None, addr=None):
         jobs = jobs[:1]
         log("ONE BRICK: only %s is built" % jobs[0][0])
     if choice in ("all", "one"):
+        if args.real and sock is not None and addr:
+            # Warn the visitor in the headset ("Caution, the physical UR5 will now move") and give it time to play
+            say(sock, addr, "real_start")
+            time.sleep(3.0)
         try:
             backend.run(jobs)
         except OSError as e:                      # no network connection to the robot
@@ -781,17 +807,21 @@ def cmd_run(args):
     except OSError:
         ips = ["?"]
     log("listening on UDP %d - build a wall in the headset (A = OK). Laptop IPs: %s" % (UDP_PORT, ", ".join(ips)))
-    log("(press M = back to the menu)")
+    log("(press M = back to the menu, R = headset back to the opening for the next visitor)")
     last_key = None
+    headset = None
     # Wait in 1-second steps: a plain wait doesn't notice Ctrl+C on Windows until a message arrives
     sock.settimeout(1.0)
     while True:
         try:
             data, addr = sock.recvfrom(65535)
         except socket.timeout:
-            if menu_key_pressed():
+            key = waiting_key()
+            if key == "m":
                 log("back to the menu")
                 return
+            if key == "r":
+                restart_headset(sock, headset)
             continue
         except KeyboardInterrupt:
             log("stopped listening")
@@ -819,12 +849,13 @@ def cmd_run(args):
             continue
         last_key = key
         log("from headset", addr[0])
+        headset = addr[0]
         with open(os.path.join(HERE, "last_layout.json"), "w") as f:
             json.dump(layout, f, indent=2)       # replay later with --file last_layout.json
         if handle(layout, tf, backend, args, sock, addr[0]) == "menu":
             log("back to the menu")
             return
-        log("waiting for the next wall from the headset (M = back to the menu)")
+        log("waiting for the next wall from the headset (M = back to the menu, R = headset back to the opening)")
 
 
 def cmd_corners(args):

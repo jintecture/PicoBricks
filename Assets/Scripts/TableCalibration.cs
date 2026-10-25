@@ -1,3 +1,5 @@
+using System;
+using Unity.XR.PXR;
 using UnityEngine;
 using UnityEngine.XR;
 
@@ -101,11 +103,96 @@ public class TableCalibration : MonoBehaviour
 
         // Visitors never calibrate: staff place the table once (Settings), it is saved on the headset and loaded here
         LoadSaved();
+        StartAnchors();
+    }
+
+    // ---------- spatial anchor: keeps the table in the same spot in the ROOM across app restarts (25 Oct) ----------
+    // The saved numbers above are relative to the headset's tracking origin, which can move between sessions (Jin had
+    // to recalibrate after restarting). A PICO spatial anchor is stored by the headset with its map of the room, so the
+    // table is put back where it really is. The numbers stay as a fallback until the anchor is found.
+    const string AnchorKey = SaveKey + "anchor";
+    bool anchorsReady, justPlaced;
+    ulong anchorHandle, oldAnchorHandle;
+    float nextLocate;
+
+    // Anchors are in tracking space (the XR rig's Camera Offset); the table is placed in world space
+    Transform TrackingSpace => Camera.main != null ? Camera.main.transform.parent : null;
+
+    async void StartAnchors()
+    {
+        try
+        {
+            var started = await PXR_MixedReality.StartSenseDataProvider(PxrSenseDataProviderType.SpatialAnchor);
+            anchorsReady = started == PxrResult.SUCCESS;
+            Debug.Log("PicoBricks: spatial anchors " + started);
+            if (!anchorsReady || !Guid.TryParse(PlayerPrefs.GetString(AnchorKey, ""), out var uuid)) return;
+            var found = await PXR_MixedReality.QuerySpatialAnchorAsync(new[] { uuid });
+            if (found.result == PxrResult.SUCCESS && found.anchorHandleList.Count > 0)
+            {
+                anchorHandle = found.anchorHandleList[0];
+                Debug.Log("PicoBricks: table anchor loaded");
+            }
+            else Debug.LogWarning("PicoBricks: table anchor not found (" + found.result + "), using the saved numbers");
+        }
+        catch (Exception e) { Debug.LogWarning("PicoBricks: spatial anchors unavailable: " + e.Message); }
+    }
+
+    async void SaveAnchor(Vector3 worldPosition, Quaternion worldRotation)
+    {
+        // Until the new anchor is saved, the old one must not come back at the next start (it would undo this calibration)
+        PlayerPrefs.DeleteKey(AnchorKey);
+        PlayerPrefs.Save();
+        if (!anchorsReady) return;
+        try
+        {
+            var space = TrackingSpace;
+            var pos = space != null ? space.InverseTransformPoint(worldPosition) : worldPosition;
+            var rot = space != null ? Quaternion.Inverse(space.rotation) * worldRotation : worldRotation;
+            var made = await PXR_MixedReality.CreateSpatialAnchorAsync(pos, rot);
+            if (made.result != PxrResult.SUCCESS) { Debug.LogWarning("PicoBricks: anchor not created: " + made.result); return; }
+            var kept = await PXR_MixedReality.PersistSpatialAnchorAsync(made.anchorHandle);
+            if (kept != PxrResult.SUCCESS) { Debug.LogWarning("PicoBricks: anchor not saved: " + kept); return; }
+            if (oldAnchorHandle != 0)   // forget the previous calibration's anchor
+            {
+                await PXR_MixedReality.UnPersistSpatialAnchorAsync(oldAnchorHandle);
+                PXR_MixedReality.DestroyAnchor(oldAnchorHandle);
+                oldAnchorHandle = 0;
+            }
+            anchorHandle = made.anchorHandle;
+            PlayerPrefs.SetString(AnchorKey, made.uuid.ToString());
+            PlayerPrefs.Save();
+            Debug.Log("PicoBricks: table saved as a spatial anchor " + made.uuid);
+        }
+        catch (Exception e) { Debug.LogWarning("PicoBricks: anchor not saved: " + e.Message); }
+    }
+
+    void RestoreOldAnchor()
+    {
+        if (anchorHandle == 0 && oldAnchorHandle != 0) { anchorHandle = oldAnchorHandle; oldAnchorHandle = 0; }
+    }
+
+    // Twice a second: put the table where the anchor is now (also corrects a re-centred headset). Kept upright.
+    void FollowAnchor()
+    {
+        if (anchorHandle == 0 || IsCalibrating || Time.time < nextLocate) return;
+        nextLocate = Time.time + 0.5f;
+        if (PXR_MixedReality.LocateAnchor(anchorHandle, out var pos, out var rot) != PxrResult.SUCCESS) return;
+        if (pos == Vector3.zero && rot.w == 0f && rot.x == 0f && rot.y == 0f && rot.z == 0f) return;   // not tracked yet
+        var space = TrackingSpace;
+        var worldPos = space != null ? space.TransformPoint(pos) : pos;
+        var forward = (space != null ? space.rotation * rot : rot) * Vector3.forward;
+        forward.y = 0f;
+        if (forward.sqrMagnitude < 1e-6f) return;
+        var worldRot = Quaternion.LookRotation(forward.normalized, Vector3.up);
+        if (Vector3.Distance(worldPos, workspace.position) > 0.003f || Quaternion.Angle(worldRot, workspace.rotation) > 0.3f)
+            workspace.SetPositionAndRotation(worldPos, worldRot);
     }
 
     /// <summary>Start calibrating (Settings page, A).</summary>
     public void Begin()
     {
+        // Stop following the old anchor while measuring (it is replaced once the new table is placed)
+        if (anchorHandle != 0) { oldAnchorHandle = anchorHandle; anchorHandle = 0; }
         step = 0;
         label.text = "Table calibration   (B = cancel)\n" + CurrentPrompts[0];
     }
@@ -113,6 +200,7 @@ public class TableCalibration : MonoBehaviour
     /// <summary>Stop without changing the table (B, or leaving the settings).</summary>
     public void Cancel()
     {
+        RestoreOldAnchor();
         step = -1;
         label.text = "";
     }
@@ -147,6 +235,7 @@ public class TableCalibration : MonoBehaviour
 
     void Update()
     {
+        FollowAnchor();
         if (rightController == null) return;
         tip.position = TipPosition;
         tip.gameObject.SetActive(IsCalibrating);
@@ -174,8 +263,10 @@ public class TableCalibration : MonoBehaviour
             else
             {
                 step = -1;
+                justPlaced = false;
                 if (fixedSize) PlaceFixed(points[0], points[1]);
                 else Place(points[0], points[1], points[2], points[3]);
+                if (!justPlaced) RestoreOldAnchor();   // points rejected: keep following the old anchor (the message stays)
             }
         }
 
@@ -249,7 +340,12 @@ public class TableCalibration : MonoBehaviour
         // You can see the real table now, so only show the virtual one in VR mode
         if (passthrough != null) passthrough.HideWhenOn(table.GetComponent<Renderer>());
 
-        if (save) Save(frontMiddle, forward, width, depth, height);
+        if (save)
+        {
+            Save(frontMiddle, forward, width, depth, height);
+            SaveAnchor(workspace.position, workspace.rotation);
+            justPlaced = true;
+        }
         // Staff message, then the controller is clean again for the visitor
         label.text = message;
         if (!string.IsNullOrEmpty(message)) StartCoroutine(ClearLabelAfter(6f));

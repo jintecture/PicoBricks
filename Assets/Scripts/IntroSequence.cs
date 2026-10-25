@@ -44,7 +44,20 @@ public class IntroSequence : MonoBehaviour
         if (filmTexture != null) filmTexture.Release();
     }
 
-    IEnumerator Start()
+    void Start() => Play();
+
+    bool running;
+
+    /// <summary>Play the opening (app start, and again for the next visitor: long X / R on the laptop).</summary>
+    public void Play()
+    {
+        if (running) return;
+        running = true;
+        Playing = true;
+        StartCoroutine(Run());
+    }
+
+    IEnumerator Run()
     {
         while (Camera.main == null) yield return null;
         cam = Camera.main.transform;
@@ -71,8 +84,8 @@ public class IntroSequence : MonoBehaviour
         choicesMat = Layer(anchor, choices, choicesWidth, choicesY, 4004);
         buttonMat = Layer(anchor, button, choicesWidth, choicesY, 4005);
 
-        music = gameObject.AddComponent<AudioSource>();
-        hit = gameObject.AddComponent<AudioSource>();
+        if (music == null) music = gameObject.AddComponent<AudioSource>();
+        if (hit == null) hit = gameObject.AddComponent<AudioSource>();
         music.playOnAwake = hit.playOnAwake = false;
         music.spatialBlend = hit.spatialBlend = 0f;
 
@@ -85,7 +98,7 @@ public class IntroSequence : MonoBehaviour
         video.audioOutputMode = VideoAudioOutputMode.None;
         video.isLooping = false;
         video.skipOnDrop = true;
-        filmTexture = new RenderTexture(4096, 2048, 0);
+        if (filmTexture == null) filmTexture = new RenderTexture(4096, 2048, 0);
         video.renderMode = VideoRenderMode.RenderTexture;
         video.targetTexture = filmTexture;
         video.errorReceived += (v, msg) => { failed = true; Debug.LogWarning("PicoBricks intro: " + msg); };
@@ -142,9 +155,11 @@ public class IntroSequence : MonoBehaviour
             StartCoroutine(Fade(m, 1f, 0f, fadeOut, 0f));
         yield return new WaitForSeconds(fadeOut + 0.05f);
         foreach (var go in made) Destroy(go);
+        made.Clear();
+        sphere = anchor = null;
+        running = false;
         Playing = false;
         Finished?.Invoke();
-        Destroy(this);
     }
 
     void LateUpdate()

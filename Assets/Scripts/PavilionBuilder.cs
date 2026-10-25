@@ -16,7 +16,8 @@ using UnityEngine.XR;
 //  hold TRIGGER on the table      = draw the line (a new pavilion)
 //  TRIGGER on an orange ball      = drag it: the line and the pavilion follow (pull points)
 //  THUMBSTICK up / down           = more / fewer rows
-//  TRIGGER on a brick             = select it; THUMBSTICK left / right = gray / brown / gray-to-red (by height); A = done
+//  TRIGGER on a brick             = select it; THUMBSTICK left / right = printed gray clay / printed brown clay /
+//                                   gray-to-red (by height) / rammed earth (solid piece, no arches); A = done
 //  B                              = home screen (HomeMenu)
 public class PavilionBuilder : MonoBehaviour
 {
@@ -34,17 +35,19 @@ public class PavilionBuilder : MonoBehaviour
     public int maxRows = 7;
     public float edgeMargin = 0.03f;
 
-    static readonly Color Gray = new Color(0.62f, 0.60f, 0.58f);
-    static readonly Color Brown = new Color(0.55f, 0.36f, 0.20f);
+    // Colours from Jin's photos of the real pieces (24-25 Oct): printed light clay, printed brown clay, rammed earth
+    static readonly Color Gray = new Color(0.80f, 0.76f, 0.68f);
+    static readonly Color Brown = new Color(0.70f, 0.55f, 0.33f);
     static readonly Color Red = new Color(0.78f, 0.14f, 0.10f);
-    static readonly string[] ColourNames = { "Gray", "Brown", "Gray to red" };
+    static readonly string[] ColourNames = { "Gray clay", "Brown clay", "Gray to red", "Rammed earth" };
+    const int Options = 4, RammedEarth = 3;
 
     enum Step { Draw, Drawing, Edit }
     Step step = Step.Draw;
     bool shown;
     int rows = 3;
 
-    class Brick { public GameObject go; public Renderer renderer; public int row, index; }
+    class Brick { public GameObject go; public Renderer renderer; public MeshFilter filter; public int row, index; }
 
     readonly List<Vector3> drawn = new List<Vector3>();      // table space
     readonly List<Vector3> pulls = new List<Vector3>();      // pull points (table space)
@@ -58,7 +61,8 @@ public class PavilionBuilder : MonoBehaviour
     Brick selected;
     int dragging = -1;
 
-    Mesh mesh;
+    Mesh mesh, solidMesh;   // printed brick (arches, three legs) and the solid rammed-earth piece
+    Texture2D earthLayers;
     Transform root;
     LineRenderer line, pointer;
     Transform pointerDot;
@@ -72,6 +76,8 @@ public class PavilionBuilder : MonoBehaviour
     void Start()
     {
         mesh = LoadMesh(brickMesh);
+        solidMesh = SolidPiece(legSpacing, 0.004f, mesh.bounds.size.y > 0f ? mesh.bounds.size.y : 0.015f);
+        earthLayers = EarthLayers();
         block = new MaterialPropertyBlock();
         root = new GameObject("Pavilion").transform;
         root.SetParent(workspace, false);
@@ -87,10 +93,10 @@ public class PavilionBuilder : MonoBehaviour
         pointerDot.GetComponent<Renderer>().sharedMaterial = lineMaterial;
         label = MakeLabel();
 
-        for (int i = 0; i < 3; i++)   // colour swatches shown above a selected brick
+        for (int i = 0; i < Options; i++)   // choices shown above a selected brick
         {
             var s = new GameObject("Swatch " + ColourNames[i]);
-            s.AddComponent<MeshFilter>().sharedMesh = mesh;
+            s.AddComponent<MeshFilter>().sharedMesh = i == RammedEarth ? solidMesh : mesh;
             s.AddComponent<MeshRenderer>().sharedMaterial = brickMaterial;
             s.transform.SetParent(root, false);
             swatches.Add(s.transform);
@@ -113,7 +119,28 @@ public class PavilionBuilder : MonoBehaviour
             dragging = -1;
             if (step == Step.Drawing) AskToDraw();
         }
-        else Say(label.text);
+        else
+        {
+            Say(label.text);
+            VoiceGuide.Play("pavilion_start");
+        }
+    }
+
+    /// <summary>Empty table for the next visitor (restart from the opening).</summary>
+    public void Clear()
+    {
+        if (root == null) return;
+        Deselect();
+        dragging = -1;
+        drawn.Clear();
+        pulls.Clear();
+        colours.Clear();
+        rows = 3;
+        used = 0;
+        HideUnusedBricks();
+        UpdatePullBalls();
+        ShowLine(drawn);
+        AskToDraw();
     }
 
     void Update()
@@ -179,7 +206,7 @@ public class PavilionBuilder : MonoBehaviour
             {
                 var key = (selected.row, selected.index);
                 colours.TryGetValue(key, out int option);
-                colours[key] = (option + (stick.x > 0f ? 1 : 2)) % 3;
+                colours[key] = (option + (stick.x > 0f ? 1 : Options - 1)) % Options;
                 ShowSelection();
             }
             if (aPressed) Deselect();
@@ -317,13 +344,14 @@ public class PavilionBuilder : MonoBehaviour
             var go = new GameObject("Pavilion Brick");
             go.transform.SetParent(root, false);
             go.transform.localScale = Vector3.one * brickScale;
-            go.AddComponent<MeshFilter>().sharedMesh = mesh;
+            var mf = go.AddComponent<MeshFilter>();
+            mf.sharedMesh = mesh;
             var r = go.AddComponent<MeshRenderer>();
             r.sharedMaterial = brickMaterial;
             var box = go.AddComponent<BoxCollider>();
             box.center = mesh.bounds.center;
             box.size = mesh.bounds.size;
-            var b = new Brick { go = go, renderer = r };
+            var b = new Brick { go = go, renderer = r, filter = mf };
             brickOf[box] = b;
             bricks.Add(b);
         }
@@ -342,17 +370,25 @@ public class PavilionBuilder : MonoBehaviour
     Color ColourOf(int option, int row)
     {
         if (option == 1) return Brown;
-        if (option == 2) return Color.Lerp(Gray, Red, rows > 1 ? row / (rows - 1f) : 1f);   // vertical gradient
+        if (option == 2) return Color.Lerp(Gray, Red, rows > 1 ? row / (rows - 1f) : 1f);   // vertical gradient over the rows
         return Gray;
     }
 
     void Recolour(Brick b, bool blink)
     {
         colours.TryGetValue((b.row, b.index), out int option);
-        var c = ColourOf(option, b.row);
-        if (blink) c = Color.Lerp(c, Color.white, 0.25f + 0.25f * Mathf.Sin(Time.time * 6f));
+        b.filter.sharedMesh = option == RammedEarth ? solidMesh : mesh;
+        var c = option == RammedEarth ? Color.white : ColourOf(option, b.row);
+        if (blink) c = Color.Lerp(c, Color.white * 1.3f, 0.25f + 0.25f * Mathf.Sin(Time.time * 6f));
+        SetLook(b.renderer, c, option == RammedEarth);
+    }
+
+    // Colour, plus the earth layers texture for rammed earth (white texture = plain colour)
+    void SetLook(Renderer r, Color c, bool earth)
+    {
         block.SetColor("_BaseColor", c);
-        b.renderer.SetPropertyBlock(block);
+        block.SetTexture("_BaseMap", earth ? earthLayers : Texture2D.whiteTexture);
+        r.SetPropertyBlock(block);
     }
 
     void Select(Brick b)
@@ -379,16 +415,15 @@ public class PavilionBuilder : MonoBehaviour
         across.y = 0f;
         across = across.sqrMagnitude > 1e-6f ? across.normalized : Vector3.right;
         Vector3 above = selected.go.transform.localPosition + Vector3.up * (RowHeight * 2.5f);
-        for (int i = 0; i < 3; i++)
+        for (int i = 0; i < Options; i++)
         {
             var s = swatches[i];
             s.gameObject.SetActive(true);
-            s.localPosition = above + across * ((i - 1) * 0.07f);
+            s.localPosition = above + across * ((i - (Options - 1) / 2f) * 0.07f);
             s.localScale = Vector3.one * brickScale * (i == option ? 0.8f : 0.5f);
-            block.SetColor("_BaseColor", i == 2 ? Red : ColourOf(i, 0));
-            s.GetComponent<Renderer>().SetPropertyBlock(block);
+            SetLook(s.GetComponent<Renderer>(), i == RammedEarth ? Color.white : i == 2 ? Red : ColourOf(i, 0), i == RammedEarth);
         }
-        Say($"Brick colour: {ColourNames[option]}\nTHUMBSTICK left / right = gray / brown / gray to red\nA = done");
+        Say($"Brick: {ColourNames[option]}\nTHUMBSTICK left / right = gray clay / brown clay / gray to red / rammed earth\nA = done");
     }
 
     // ---------- helpers ----------
@@ -488,6 +523,92 @@ public class PavilionBuilder : MonoBehaviour
             var copy = new List<Vector3>(pts);
             for (int i = 1; i < pts.Count - 1; i++) pts[i] = (copy[i - 1] + copy[i] * 2f + copy[i + 1]) / 4f;
         }
+    }
+
+    // The rammed-earth piece (Jin's photo, 25 Oct): solid, same outline and height as the printed brick: the triangle
+    // around the three legs with rounded corners (leg radius), no arches. One leg points along +z, like the mesh.
+    static Mesh SolidPiece(float legDistance, float legRadius, float height)
+    {
+        const int perCorner = 10;
+        var ring = new List<(Vector3 p, Vector3 n)>();
+        for (int leg = 0; leg < 3; leg++)
+        {
+            float a0 = leg * 120f;
+            Vector3 centre = Dir(a0) * legDistance;
+            for (int k = 0; k <= perCorner; k++)
+            {
+                float a = a0 - 60f + 120f * k / perCorner;
+                ring.Add((centre + Dir(a) * legRadius, Dir(a)));
+            }
+        }
+        var verts = new List<Vector3>();
+        var normals = new List<Vector3>();
+        var uvs = new List<Vector2>();
+        var tris = new List<int>();
+        int n = ring.Count;
+        // sides: u around the piece, v = height (the earth layers run horizontally)
+        for (int i = 0; i <= n; i++)
+        {
+            var (p, nr) = ring[i % n];
+            verts.Add(p); normals.Add(nr); uvs.Add(new Vector2(i / (float)n, 0f));
+            verts.Add(p + Vector3.up * height); normals.Add(nr); uvs.Add(new Vector2(i / (float)n, 1f));
+        }
+        for (int i = 0; i < n; i++)
+        {
+            int b0 = 2 * i, t0 = b0 + 1, b1 = b0 + 2, t1 = b0 + 3;
+            tris.AddRange(new[] { t1, t0, b0, t1, b0, b1 });
+        }
+        // top and bottom: fans from the middle (the outline is convex); the top shows the top layer's colour
+        foreach (bool top in new[] { true, false })
+        {
+            int c = verts.Count;
+            float y = top ? height : 0f;
+            var up = top ? Vector3.up : Vector3.down;
+            var uv = new Vector2(0.5f, top ? 0.99f : 0.01f);
+            verts.Add(new Vector3(0f, y, 0f)); normals.Add(up); uvs.Add(uv);
+            for (int i = 0; i < n; i++)
+            {
+                verts.Add(ring[i].p + Vector3.up * y); normals.Add(up); uvs.Add(uv);
+            }
+            for (int i = 0; i < n; i++)
+            {
+                int a = c + 1 + i, b = c + 1 + (i + 1) % n;
+                if (top) tris.AddRange(new[] { c, a, b });
+                else tris.AddRange(new[] { c, b, a });
+            }
+        }
+        var m = new Mesh { name = "Rammed Earth Piece" };
+        m.SetVertices(verts);
+        m.SetNormals(normals);
+        m.SetUVs(0, uvs);
+        m.SetTriangles(tris, 0);
+        m.RecalculateBounds();
+        return m;
+    }
+
+    static Vector3 Dir(float degrees) => new Vector3(Mathf.Sin(degrees * Mathf.Deg2Rad), 0f, Mathf.Cos(degrees * Mathf.Deg2Rad));
+
+    // Horizontal layers like the rammed-earth photo: ochre bands with paler, gravelly bands in between
+    static Texture2D EarthLayers()
+    {
+        var ochre = new Color(0.76f, 0.58f, 0.32f);
+        var pale = new Color(0.82f, 0.74f, 0.60f);
+        float[] edges = { 0f, 0.14f, 0.30f, 0.46f, 0.62f, 0.78f, 1f };   // band edges, bottom to top
+        const int h = 64;
+        var tex = new Texture2D(4, h, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, name = "Earth Layers" };
+        var rnd = new System.Random(5);
+        for (int y = 0; y < h; y++)
+        {
+            float v = (y + 0.5f) / h;
+            int band = 0;
+            while (band < edges.Length - 2 && v > edges[band + 1]) band++;
+            var c = band % 2 == 0 ? pale : ochre;
+            if (band == edges.Length - 2) c = ochre;                      // the top layer is ochre
+            float grain = 0.94f + 0.08f * (float)rnd.NextDouble();
+            for (int x = 0; x < 4; x++) tex.SetPixel(x, y, c * grain);
+        }
+        tex.Apply();
+        return tex;
     }
 
     static Mesh LoadMesh(TextAsset file)

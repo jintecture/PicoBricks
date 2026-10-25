@@ -99,7 +99,12 @@ public class GhostPlayer : MonoBehaviour
             PreviewMsg msg;
             try { msg = JsonUtility.FromJson<PreviewMsg>(Encoding.UTF8.GetString(data)); }
             catch (Exception) { continue; }
-            if (msg == null || msg.type != "preview") continue;
+            if (msg == null) continue;
+            // From the laptop bridge: a voice line (e.g. "real_start" just before the real UR5 moves), or R in the
+            // bridge window = back to the opening for the next visitor
+            if (msg.type == "say") { VoiceGuide.Play(msg.key); continue; }
+            if (msg.type == "restart") { HomeMenu.RestartFromIntro(); continue; }
+            if (msg.type != "preview") continue;
             if (!string.IsNullOrEmpty(msg.error))
             {
                 Stop();
@@ -225,5 +230,5 @@ public class GhostPlayer : MonoBehaviour
     // ---------- message from the bridge ----------
 
     [Serializable] public class Frame { public float[] j; public string grip; public string brick; }
-    [Serializable] public class PreviewMsg { public string type; public int seq; public string error; public Frame[] frames; }
+    [Serializable] public class PreviewMsg { public string type; public int seq; public string error; public string key; public Frame[] frames; }
 }

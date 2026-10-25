@@ -117,7 +117,7 @@ public class WallBuilder : MonoBehaviour
     void AskToDraw()
     {
         step = Step.Draw;
-        Say("Draw your wall\nPoint at the table and HOLD the TRIGGER (index finger)", "draw");
+        Say("Draw a curve inside the black rectangle\nPoint at the table and HOLD the TRIGGER (index finger)", "draw");
     }
 
     void Update()
