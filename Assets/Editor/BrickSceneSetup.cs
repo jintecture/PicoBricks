@@ -613,6 +613,11 @@ public static class BrickSceneSetup
             r.sharedMaterials = Enumerable.Repeat(ghostMat, r.sharedMaterials.Length).ToArray();
             r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         }
+        // Only the gripper on the wrist: hide HANDZONe's long pin hanging between the fingers ("pointer-1", which
+        // holds "pointer-2"), Jin 25 Oct. The tool length (TCP 151 mm, fingertips) is unchanged.
+        foreach (var t in ur5.GetComponentsInChildren<Transform>(true))
+            if (t.name == "pointer-1" || t.name == "pointer-2")
+                t.gameObject.SetActive(false);
 
         var ghost = go.AddComponent<GhostRobot>();
         ghost.baseInWorkspace = baseLocal;
