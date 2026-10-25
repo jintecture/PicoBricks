@@ -14,7 +14,7 @@ using UnityEngine.XR;
 //    pavilion steps in at both ends; as many rows as the line allows (until the top row is 1 brick)
 // Right controller:
 //  hold TRIGGER on the table      = draw the line (a new pavilion)
-//  TRIGGER on an orange ball      = drag it: the line and the pavilion follow (pull points)
+//  GRIP (side button) at an orange ball = drag it: the line and the pavilion follow (pull points)
 //  THUMBSTICK up / down           = more / fewer rows
 //  TRIGGER on a brick             = select it; THUMBSTICK left / right = printed gray clay / printed brown clay /
 //                                   gray-to-red (by height) / rammed earth (solid piece, no arches); A = done
@@ -69,7 +69,7 @@ public class PavilionBuilder : MonoBehaviour
     Transform pointerDot;
     TextMesh label;
     MaterialPropertyBlock block;
-    bool triggerWasDown, aWasDown, stickXWasPushed, stickYWasPushed;
+    bool triggerWasDown, gripWasDown, aWasDown, stickXWasPushed, stickYWasPushed;
 
     float X => legSpacing * brickScale;                 // spacing of the points along the curve
     float RowHeight => mesh != null ? mesh.bounds.size.y * brickScale : 0.0375f;
@@ -161,19 +161,24 @@ public class PavilionBuilder : MonoBehaviour
         label.gameObject.SetActive(true);
         PlaceLabel();
 
-        // What the controller points at: a pull point, a brick, or the table
+        // GRIP (the side button) moves the pull points, the TRIGGER is for bricks and drawing: with one button the
+        // trigger kept selecting a brick in front of the ball (Jin, 25 Oct)
+        right.TryGetFeatureValue(CommonUsages.gripButton, out bool grip);
+        bool gripPressed = grip && !gripWasDown;
+        gripWasDown = grip;
+
+        // What the controller points at: a brick, or the table; and the pull point closest to the ray (bricks in
+        // front of it don't matter), shown a little bigger
         var ray = new Ray(rightController.position, rightController.forward);
         Brick hitBrick = null;
-        int hitPull = -1;
         float nearest = 5f;
         foreach (var hit in Physics.RaycastAll(ray, 5f))
-        {
-            if (hit.distance >= nearest) continue;
-            if (pullOf.TryGetValue(hit.collider, out int p)) { hitPull = p; hitBrick = null; nearest = hit.distance; }
-            else if (brickOf.TryGetValue(hit.collider, out var b)) { hitBrick = b; hitPull = -1; nearest = hit.distance; }
-        }
+            if (hit.distance < nearest && brickOf.TryGetValue(hit.collider, out var b)) { hitBrick = b; nearest = hit.distance; }
+        int aimedPull = dragging >= 0 ? dragging : AimedPull(ray);
+        for (int i = 0; i < pulls.Count; i++)
+            pullBalls[i].localScale = Vector3.one * (i == aimedPull ? 0.045f : 0.03f);
         bool onTable = PointOnTable(out var tablePoint);
-        Vector3 end = hitPull >= 0 || hitBrick != null ? ray.GetPoint(nearest)
+        Vector3 end = hitBrick != null ? ray.GetPoint(nearest)
                     : onTable ? workspace.TransformPoint(tablePoint) : ray.GetPoint(1f);
         ShowPointer(true, end);
 
@@ -185,15 +190,15 @@ public class PavilionBuilder : MonoBehaviour
             return;
         }
 
-        if (triggerPressed)
+        if (triggerPressed && dragging < 0)
         {
-            if (hitPull >= 0) { Deselect(); dragging = hitPull; }
-            else if (hitBrick != null) Select(hitBrick);
+            if (hitBrick != null) Select(hitBrick);
             else if (onTable) StartDrawing(tablePoint);
         }
+        if (gripPressed && aimedPull >= 0) { Deselect(); dragging = aimedPull; }
         if (dragging >= 0)
         {
-            if (!trigger) dragging = -1;
+            if (!grip) dragging = -1;
             else if (onTable && Vector3.Distance(tablePoint, pulls[dragging]) > 0.003f)
             {
                 pulls[dragging] = tablePoint;
@@ -281,6 +286,22 @@ public class PavilionBuilder : MonoBehaviour
         }
     }
 
+    // The pull point closest to the controller's ray (within a few cm, more forgiving further away), or -1
+    int AimedPull(Ray ray)
+    {
+        int best = -1;
+        float bestMiss = float.MaxValue;
+        for (int i = 0; i < pulls.Count; i++)
+        {
+            Vector3 p = pullBalls[i].position;
+            float along = Vector3.Dot(p - ray.origin, ray.direction);
+            if (along <= 0f) continue;
+            float miss = Vector3.Distance(p, ray.GetPoint(along));
+            if (miss < 0.04f + 0.03f * along && miss < bestMiss) { best = i; bestMiss = miss; }
+        }
+        return best;
+    }
+
     // ---------- the pavilion ----------
 
     void Rebuild()
@@ -338,7 +359,7 @@ public class PavilionBuilder : MonoBehaviour
         if (selected == null)
             Say($"Your pavilion: {rows} rows, {used} bricks\n" +
                 "THUMBSTICK up / down = higher / lower\n" +
-                "TRIGGER on an orange ball = reshape the line\n" +
+                "GRIP (side button) at an orange ball = reshape the line\n" +
                 "TRIGGER on a brick = change its colour\n" +
                 "TRIGGER on the table = draw again     B = home");
     }
