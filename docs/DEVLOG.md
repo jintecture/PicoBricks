@@ -457,7 +457,7 @@ Parjanya's bridge stays (Wi-Fi link, table frame, calibration, URScript to the r
 - Checked: compiles with Unity's compiler; bridge syntax OK. Needs Setup Brick Scene + Ctrl+B; anchors, restart and voices not yet tested in the headset.
 - **Floating pavilion bricks fixed** (Jin's screenshot): bricks were placed per small step along the curve, so on bends the row-2 legs missed the legs below. Now like the GH script: the curve is walked in straight chords of 3X; on each chord one row-1 brick (at 2X) and one row-2 brick (at X, turned) share the side legs, and chords share a leg at their joint, plus GH's extra first brick. Checked numerically on a 35 cm radius arc: every row-2 leg lands on a row-1 leg (0.0 mm).
 - **More rows:** no fixed 7; rows can go up until the top row is a single brick (the limit follows the length of the line).
-- **Natural voice** (Jin OK'd the download): edge-tts installed in `Downloads\HelloEarth_intro	ts_lib`; `tools/make_voice.py` makes all lines with **en-US-JennyNeural** (5 % slower) as mp3; the Windows-voice wavs are removed. Samples of 4 voices in `Downloads\HelloEarth_introoice_samples`.
+- **Natural voice** (Jin OK'd the download): edge-tts installed in `Downloads\HelloEarth_intro	ts_lib`; `tools/make_voice.py` makes all lines with **en-GB-SoniaNeural** (Jin's pick, 5 % slower) as mp3; the Windows-voice wavs are removed. Samples of 4 voices in `Downloads\HelloEarth_introoice_samples`.
 - **Pull points on the GRIP** (side button): the trigger kept selecting a brick in front of the ball. The ball closest to the ray grows a little; trigger = bricks and drawing only. Brick choices now in a row under the instruction text (they overlapped the pavilion).
 
 ---

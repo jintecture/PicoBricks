@@ -9,7 +9,7 @@ import asyncio, os, sys
 sys.path.insert(0, os.path.join(os.path.expanduser("~"), "Downloads", "HelloEarth_intro", "tts_lib"))
 import edge_tts
 
-VOICE = "en-US-JennyNeural"   # warm, natural woman's voice (Jin: "woman's voice, more natural")
+VOICE = "en-GB-SoniaNeural"   # natural British woman's voice, Jin's pick of 4 samples (25 Oct)
 RATE = "-5%"                  # a little slower: visitors are busy with the controller
 OUT = os.path.join(os.path.dirname(__file__), "..", "Assets", "Resources", "Voice")
 SAMPLES = os.path.join(os.path.expanduser("~"), "Downloads", "HelloEarth_intro", "voice_samples")
