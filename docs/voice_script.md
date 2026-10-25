@@ -18,4 +18,4 @@ A moment without a line stays silent. Keep lines short: the visitor is reading t
 | error | Something failed | Something went wrong. TRIGGER = draw your wall again | |
 | pavilion_start | "Design our pavilion" opens | Design our pavilion... | Design our pavilion on your own. Draw any curve, and get started! |
 
-Recorded for now with the Windows voice **Zira** (a woman's voice, robotic) as `Assets/Resources/Voice/<key>.wav`; to be replaced by a natural AI voice (edge-tts, needs Jin's OK for the download).
+Made with `tools/make_voice.py` in the natural Microsoft neural voice **en-US-JennyNeural** (edge-tts, 25 Oct) as `Assets/Resources/Voice/<key>.mp3`. To change a line or the voice: edit LINES / VOICE in the script and run it again (needs internet).
