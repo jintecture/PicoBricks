@@ -44,6 +44,9 @@ public class WallBuilder : MonoBehaviour
 
     [Header("Bricks")]
     public Vector3 brickSize = new Vector3(0.05f, 0.05f, 0.10f); // width, height, length (m)
+    [Tooltip("Free space between neighbouring bricks (m). Touching bricks (0 mm) got hit by the real robot while it " +
+             "lowered the next one: the real UR5 can be ~8 mm off the ghost (25 Oct)")]
+    public float brickGap = 0.010f;
     public int maxLayers = 3;
 
     [Header("Drawing")]
@@ -322,7 +325,9 @@ public class WallBuilder : MonoBehaviour
     List<BrickPose> PlanRectangle(int layerCount, out List<Vector3> wallCurve)
     {
         int perLayer = BrickCount / layerCount;
-        float L = brickSize.z, W = brickSize.x;
+        // Each brick gets a slot of its length + the gap; the chain, the overlap test and the fit test all use the
+        // slot, and the brick sits in the middle of it, so neighbours are always at least brickGap apart
+        float L = brickSize.z + brickGap, W = brickSize.x;
 
         // 3. scale the drawn curve about its middle so its length = one layer of bricks: the wall grows or
         //    shrinks around where you drew it (it used to grow from the start point and run off the area)
@@ -754,6 +759,7 @@ public class WallBuilder : MonoBehaviour
         tm.characterSize = 0.005f;
         tm.anchor = TextAnchor.LowerCenter;
         tm.alignment = TextAlignment.Center;
+        LabelPanel.Add(tm);   // dark see-through panel behind the text (readability)
         return tm;
     }
 

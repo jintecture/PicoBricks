@@ -460,6 +460,12 @@ Parjanya's bridge stays (Wi-Fi link, table frame, calibration, URScript to the r
 - **Natural voice** (Jin OK'd the download): edge-tts installed in `Downloads\HelloEarth_intro	ts_lib`; `tools/make_voice.py` makes all lines with **en-GB-SoniaNeural** (Jin's pick, 5 % slower) as mp3; the Windows-voice wavs are removed. Samples of 4 voices in `Downloads\HelloEarth_introoice_samples`.
 - **Pull points on the GRIP** (side button): the trigger kept selecting a brick in front of the ball. The ball closest to the ray grows a little; trigger = bricks and drawing only. Brick choices now in a row under the instruction text (they overlapped the pavilion).
 
+## 2026-10-26: Robot hitting placed bricks, text panels
+- **Problem (Jin, real robot):** bricks too tight, overlapping a little, and the robot sometimes hit a placed brick and stopped. **Cause, measured** with the new `robot-bridge/check_path.py` on Jin's last wall: neighbouring bricks were planned **0.0 mm apart** (touching exactly; the overlap test even allowed 1 mm), while the real UR5 can be ~8 mm off the ghost. The path itself is fine (no dip between poses, straight down onto each spot).
+- **Fix:** WallBuilder plans **10 mm between neighbouring bricks** (`brickGap`: each brick sits in the middle of a slot of length + gap; chain, overlap and fit tests use the slot). The bridge now warns (!!) before building if any two bricks are closer than 5 mm (`neighbour_gaps`, `MIN_GAP`). `python check_path.py last_layout.json` checks any wall without moving the robot.
+- **Text panels:** every floating text (wall, pavilion, ghost robot, calibration) has a **45 % black, rounded, see-through panel** behind it (`LabelPanel.cs`, sized to the text every frame; drawn with IntroOverlay, now with a ZTest setting so the panel hides behind nearer objects). Previews compared 25/35/45/60/65 %; Jin chose 45.
+- Ghost UR5 shows only the gripper (HANDZONe's pin `pointer-1/2` hidden by the setup). Headset view on the laptop: one big picture (right eye, cropped, `SHOW_HEADSET.bat`).
+
 ---
 
 ## Still to do

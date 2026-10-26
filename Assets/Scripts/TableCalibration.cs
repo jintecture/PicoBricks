@@ -99,6 +99,7 @@ public class TableCalibration : MonoBehaviour
         label.characterSize = 0.004f;
         label.anchor = TextAnchor.LowerCenter;
         label.alignment = TextAlignment.Center;
+        LabelPanel.Add(label);   // dark see-through panel behind the text (readability)
         label.text = "";
 
         // Visitors never calibrate: staff place the table once (Settings), it is saved on the headset and loaded here

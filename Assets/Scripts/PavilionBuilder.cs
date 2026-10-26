@@ -692,6 +692,7 @@ public class PavilionBuilder : MonoBehaviour
         tm.characterSize = 0.005f;
         tm.anchor = TextAnchor.LowerCenter;
         tm.alignment = TextAlignment.Center;
+        LabelPanel.Add(tm);   // dark see-through panel behind the text (readability)
         go.SetActive(false);
         return tm;
     }

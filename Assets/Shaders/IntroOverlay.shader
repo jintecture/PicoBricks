@@ -7,12 +7,14 @@ Shader "PicoBricks/IntroOverlay"
     {
         _MainTex ("Texture", 2D) = "white" {}
         _Color ("Colour", Color) = (1, 1, 1, 1)
+        // Always (8) = on top of everything (intro, home screen); LessEqual (4) = behind nearer objects (text panels)
+        [Enum(UnityEngine.Rendering.CompareFunction)] _ZTest ("ZTest", Float) = 8
     }
     SubShader
     {
         Tags { "Queue" = "Overlay" "RenderType" = "Transparent" "IgnoreProjector" = "True" }
         ZWrite Off
-        ZTest Always
+        ZTest [_ZTest]
         Cull Off
         Blend SrcAlpha OneMinusSrcAlpha, One OneMinusSrcAlpha
 

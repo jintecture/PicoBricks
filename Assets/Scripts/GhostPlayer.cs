@@ -216,6 +216,7 @@ public class GhostPlayer : MonoBehaviour
         tm.characterSize = 0.005f;
         tm.anchor = TextAnchor.LowerCenter;
         tm.alignment = TextAlignment.Center;
+        LabelPanel.Add(tm);   // dark see-through panel behind the text (readability)
         tm.text = "";
         return tm;
     }

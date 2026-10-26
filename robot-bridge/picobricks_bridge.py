@@ -349,6 +349,46 @@ def print_jobs(jobs):
             % (name, P[0], P[1], P[2], P[3], Q[0], Q[1], Q[2], Q[3]))
 
 
+# ---------------- room between bricks (25 Oct: touching bricks got hit while the next one was lowered) ----------------
+MIN_GAP = 5.0           # mm: warn below this (the app plans 10 mm; the real robot can be ~8 mm off the ghost)
+
+
+def brick_outline(c, yaw):
+    """Corners of a placed brick on the table (robot frame, mm); its width runs along the tool yaw (top-down grip)."""
+    a = math.radians(yaw)
+    u, v = (math.cos(a), math.sin(a)), (-math.sin(a), math.cos(a))
+    hw, hl = BRICK_W / 2, BRICK_L / 2
+    return [(c[0] + su * hw * u[0] + sv * hl * v[0], c[1] + su * hw * u[1] + sv * hl * v[1])
+            for su, sv in ((1, 1), (1, -1), (-1, -1), (-1, 1))]
+
+
+def outline_gap(A, B):
+    """Distance between two convex outlines along the best separating edge normal (negative = overlap)."""
+    best = -1e9
+    for P in (A, B):
+        for i in range(4):
+            e = (P[(i + 1) % 4][0] - P[i][0], P[(i + 1) % 4][1] - P[i][1])
+            n = (-e[1] / math.hypot(*e), e[0] / math.hypot(*e))
+            pa = [p[0] * n[0] + p[1] * n[1] for p in A]
+            pb = [p[0] * n[0] + p[1] * n[1] for p in B]
+            best = max(best, min(pb) - max(pa), min(pa) - max(pb))
+    return best
+
+
+def neighbour_gaps(jobs):
+    """[(name, name, gap mm)] for bricks in the same layer that are close to each other."""
+    out = []
+    for i in range(len(jobs)):
+        for j in range(i + 1, len(jobs)):
+            ci, cj = jobs[i][4], jobs[j][4]
+            if abs(ci[2] - cj[2]) > BRICK_H / 2:
+                continue
+            g = outline_gap(brick_outline(ci, ci[3]), brick_outline(cj, cj[3]))
+            if g < 30:
+                out.append((jobs[i][0], jobs[j][0], g))
+    return out
+
+
 # ---------------- backend 1: RoboDK ----------------
 class RoboDKBackend:
     def __init__(self, real, tf):
@@ -760,6 +800,11 @@ def handle(layout, tf, backend, args, sock=None, addr=None):
     if not jobs:
         return
     print_jobs(jobs)
+    tight = [g for g in neighbour_gaps(jobs) if g[2] < MIN_GAP]
+    if tight:
+        log("!! %d pair(s) of bricks closer than %.0f mm (e.g. %s - %s: %.1f mm): the robot may hit a placed brick. "
+            "Rebuild the headset app (it plans 10 mm gaps) before building on the real robot."
+            % (len(tight), MIN_GAP, tight[0][0], tight[0][1], tight[0][2]))
     # Real robot: start the ghost (and the robot's program) from the robot's actual pose
     start = None
     if args.real and isinstance(backend, URScriptBackend):
