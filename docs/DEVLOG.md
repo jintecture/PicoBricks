@@ -477,6 +477,11 @@ Parjanya's bridge stays (Wi-Fi link, table frame, calibration, URScript to the r
   - Tested offline with a fake robot (`robot-bridge/test_ready_offline.py`, 29 checks): a wrist 3 or base turned +360 is refused for building and g fixes it by turning only that joint; a robot left on the table (tip 5-27 mm up) is lifted first; shoulder/elbow far off is refused; a route through the table is refused; after g it builds; menu v sends the pose.
 - **Gap at sharp bends:** check_path.py on Jin's 27 Oct wall (made with the 10 mm app) found 2.8 mm between two bricks at a 146 deg bend: the gap was only along the wall. The planner's overlap test now uses each brick plus 5 mm on all sides, so neighbours are >= ~8 mm apart everywhere (sharp bends get straightened a little instead).
 
+## 2026-10-28: Robot IP 192.168.1.3, pendant TCP changed
+- The robot's IP changed to **192.168.1.3** (bridge default updated; `--ip` still works).
+- Menu c showed 358 mm between our flange and the robot's TCP (was 151). Checked: tool orientation matches our maths to 0.1 deg, and with the UR5 dimensions the robot's numbers are explained exactly by a TCP of (0, 358, 0) mm, i.e. the **pendant TCP was changed** (sideways 358 instead of 151 along the tool); the arm is the same UR5. Our moves use joint angles, so they don't depend on it, but the robot's safety limits do: set it back to X 0, Y 0, Z 151 on the pendant (Installation > TCP). Also check the same gripper is mounted, and recalibrate (menu 5) if the robot or table was moved.
+- At that moment the robot stood twisted: base +331, wrist 1 +329 from READY (menu g refuses wrist 1 > 120 off: turn it back on the pendant first).
+
 ---
 
 ## Still to do
