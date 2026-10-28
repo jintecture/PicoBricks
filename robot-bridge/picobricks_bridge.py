@@ -68,8 +68,14 @@ BLEND_MAX = 20.0        # mm: how much the robot may cut corners between in-betw
 HOME_JOINTS = [0, -90, -90, -90, 90, 0]   # simulation only (no READY pose saved): a tool-down pose
 # READY pose (28 Oct): every real-robot program starts AND ends here, planned from it. The robot sometimes started
 # from a pose that looked right but had a joint turned by most of a turn (+300 deg looks like -60 deg); the first move
-# then spun the arm and it hit itself. Saved with menu r (exact joint numbers), reached with menu g.
+# then spun the arm and it hit itself. Jin can't see that difference, so the LAPTOP decides READY: calculated with our
+# UR5 maths (gripper down above the table, every joint untwisted, -180..180 deg). Menu g gets the robot there by a
+# careful route, menu v shows it on the ghost robot first. (Menu r can still save a hand-placed pose instead, only if
+# no joint is outside -180..180; it goes to ready_pose.json, delete that file to go back to the calculated one.)
 READY_FILE = os.path.join(HERE, "ready_pose.json")
+READY_ABOVE_TABLE = 250.0   # mm: READY = gripper this high above the middle of the table, pointing down
+LIFT_ABOVE_TABLE = 150.0    # mm: menu g first lifts the gripper to at least this height (away from bricks / table)
+ROUTE_MIN_CLEARANCE = 30.0  # mm: on every step of menu g the gripper tip and wrist stay this far above the table
 READY_TOLERANCE = 5.0   # deg: every joint must be this close to READY (as numbers, so a full turn counts) to start
 READY_SPEED = 15.0      # deg/s: menu g, going to READY
 # Safety net: refuse a program if a joint turns more than this between two planned poses (base, shoulder, elbow,
@@ -214,14 +220,33 @@ def tip_from_joints(q):
     return [T[0][3], T[1][3], T[2][3]], tilt
 
 
-def load_ready():
-    """The saved READY joint angles (deg), or None."""
+def computed_ready(tf):
+    """READY worked out by the laptop: gripper pointing down READY_ABOVE_TABLE above the middle of the table, elbow
+    up, and every joint as close as possible to the untwisted UR pose HOME_JOINTS (so all are within -180..180)."""
+    x, y, z = tf.point(0, 300, READY_ABOVE_TABLE)
+    q = ik_closest(x, y, z, [tf.yaw0 + 90 * k for k in range(4)], [float(v) for v in HOME_JOINTS])
+    if q is None or any(abs(v) > 180 for v in q):
+        return None
+    return [round(v, 3) for v in q]
+
+
+def load_ready(tf=None):
+    """READY joint angles (deg): a pose saved with menu r (ready_pose.json) if there is one, else calculated."""
     try:
         with open(READY_FILE) as f:
             q = [float(v) for v in json.load(f)["joints_deg"]]
-        return q if len(q) == 6 else None
+        if len(q) == 6:
+            return q
     except (OSError, ValueError, KeyError, TypeError):
+        pass
+    try:
+        return computed_ready(tf or load_calib())
+    except (OSError, ValueError, KeyError, SystemExit):
         return None
+
+
+def ready_source():
+    return "saved by hand (menu r, ready_pose.json)" if os.path.exists(READY_FILE) else "calculated by the laptop"
 
 
 def ready_offsets(q, ready):
@@ -238,7 +263,7 @@ def require_ready(q):
     """READY joints if the robot (joints q) stands there; otherwise ValueError with what to do."""
     ready = load_ready()
     if ready is None:
-        raise ValueError("no READY pose saved yet. Put the robot in a good start pose on the pendant, then menu r")
+        raise ValueError("no READY pose (calib.json missing or the READY spot is out of reach)")
     offs = ready_offsets(q, ready)
     if offs:
         raise ValueError("the robot is not at its READY pose (%s). Menu g = go to READY slowly, then try again"
@@ -292,9 +317,10 @@ def cmd_ready_save(args):
         problems.append("the gripper is not pointing down (%.0f deg off)" % tilt)
     if tip[2] < 150:
         problems.append("the gripper is low (%.0f mm above the robot base): lift it" % tip[2])
-    twisted = [JOINT_NAMES[i] for i, v in enumerate(q) if abs(v) > 270]
+    twisted = [JOINT_NAMES[i] for i, v in enumerate(q) if abs(v) > 180]
     if twisted:
-        problems.append("%s turned more than 3/4 of a turn: turn it back on the pendant (Move tab)" % ", ".join(twisted))
+        problems.append("%s outside -180..180 deg (turned more than half a turn, it may LOOK fine): turn it back "
+                        "on the pendant, or just use the laptop's calculated READY (menu g)" % ", ".join(twisted))
     log("robot now (deg): " + "  ".join("%s %.1f" % (n, v) for n, v in zip(JOINT_NAMES, q)))
     log("gripper tip (mm): x %.0f  y %.0f  z %.0f" % tuple(tip))
     if problems:
@@ -307,31 +333,102 @@ def cmd_ready_save(args):
     log("READY pose saved to", READY_FILE)
 
 
+def ready_route(q, ready, tf):
+    """Menu g: [(what happens, joints after it)] from joints q to READY, one simple step at a time:
+       1. lift the gripper straight up (away from bricks and table), wrist kept as it is
+       2. turn only the gripper (wrist 3) to its READY angle: it spins on itself, also undoing full turns
+       3. turn only the base to its READY angle (arm sweeps sideways, up high)
+       4. the arm (shoulder, elbow, wrist 1, wrist 2) into READY
+    Every step is checked with our UR5 maths: gripper tip and wrist stay ROUTE_MIN_CLEARANCE above the table.
+    ValueError (with what to do instead) if the robot needs something this route can't do safely."""
+    table = tf.origin[2]
+    for i in (1, 2, 3, 4):
+        if abs(q[i] - ready[i]) > 120:
+            raise ValueError("the %s is %+.0f deg away from READY (twisted or folded far): move the robot closer to "
+                             "READY on the pendant (Move tab) first, then g again" % (JOINT_NAMES[i], q[i] - ready[i]))
+    steps, cur = [], list(q)
+    tip, _ = tip_from_joints(cur)
+    if tip[2] < table + LIFT_ABOVE_TABLE:
+        T = kin.forward(cur)
+        dz = table + LIFT_ABOVE_TABLE - tip[2]
+        T[2][3] += dz
+        up = kin.inverse(T, cur)
+        if up is not None and max(abs(a - b) for a, b in zip(up, cur)) < 60:
+            steps.append(("lift the gripper %.0f mm straight up" % dz, up))
+            cur = up
+    if abs(cur[5] - ready[5]) > 0.5:
+        nxt = cur[:5] + [ready[5]]
+        steps.append(("turn the gripper (wrist 3) %+.0f deg" % (ready[5] - cur[5]), nxt))
+        cur = nxt
+    if abs(cur[0] - ready[0]) > 0.5:
+        nxt = [ready[0]] + cur[1:]
+        steps.append(("turn the base %+.0f deg" % (ready[0] - cur[0]), nxt))
+        cur = nxt
+    if any(abs(cur[i] - ready[i]) > 0.01 for i in range(6)):
+        steps.append(("arm into the READY pose", list(ready)))
+    prev = list(q)
+    for what, target in steps:                        # every step, in small pieces: stays clear of the table
+        if what.startswith("lift"):                   # straight up, away from the table (it may start right on it)
+            prev = target
+            continue
+        for k in range(1, 41):
+            f = k / 40
+            p = [a + (b - a) * f for a, b in zip(prev, target)]
+            tip, _ = tip_from_joints(p)
+            wrist = kin.forward(p)
+            low = min(tip[2], wrist[2][3])
+            if low < table + ROUTE_MIN_CLEARANCE:
+                raise ValueError("step '%s' would bring the gripper within %.0f mm of the table: move the robot up on "
+                                 "the pendant first, then g again" % (what, low - table))
+        prev = target
+    return steps
+
+
 def cmd_go_ready(args):
-    """Menu g: move the real robot slowly to READY, after showing how far each joint turns."""
-    ready = load_ready()
+    """Menu g: move the real robot to READY by the careful route (ready_route), slowly, after showing the steps."""
+    tf = load_calib()
+    ready = load_ready(tf)
     if ready is None:
-        sys.exit("No READY pose saved yet: put the robot in a good start pose on the pendant, then menu r.")
+        sys.exit("No READY pose: calib.json missing, or the READY spot is out of the robot's reach.")
     q, _ = read_or_exit()
-    offs = ready_offsets(q, ready)
-    if not offs:
+    if not ready_offsets(q, ready):
         log("the robot is already at READY - nothing to do")
         return
-    print("\nGoing to READY turns these joints (slowly, %.0f deg/s):" % READY_SPEED)
-    for i, d in offs:
-        print("   %-9s %8.1f  ->  %8.1f   (turns %+.0f deg)" % (JOINT_NAMES[i], q[i], ready[i], d))
-    big = [JOINT_NAMES[i] for i, d in offs if 1 <= i <= 4 and abs(d) > 90]
-    if big:
-        print("\n!! The %s turn a lot: the arm can hit itself or the table on the way. SAFER: move it close to READY on\n"
-              "   the pendant (Move tab) first, then use g for the last bit." % " and ".join(big))
-    if any(i in (0, 5) and abs(d) > 180 for i, d in offs):
-        print("\n!! A full turn is being undone (base or wrist 3): watch the gripper cable.")
+    try:
+        steps = ready_route(q, ready, tf)
+    except ValueError as e:
+        sys.exit("Not moving: " + str(e))
+    print("\nGoing to READY (%s), slowly (%.0f deg/s), one step at a time:" % (ready_source(), READY_SPEED))
+    for n, (what, _) in enumerate(steps, 1):
+        print("   %d. %s" % (n, what))
+    if any(w.startswith("turn the gripper") and abs(ready[5] - q[5]) > 180 for w, _ in steps):
+        print("\n   (the gripper undoes a full turn on itself: watch its cable)")
     if not args.yes and input("\nMove the REAL robot to READY now? Nothing in the way, e-stop in hand [y/N] ").lower() != "y":
         return
     v, a = math.radians(READY_SPEED), math.radians(JOINT_ACCEL) / 2
+    lines = []
+    for what, target in steps:
+        lines += ['  textmsg("PicoBricks to READY: %s")' % what,
+                  "  movej([%s], a=%.3f, v=%.3f)" % (",".join("%.5f" % math.radians(x) for x in target), a, v)]
     # gripper left as it is (opening it could drop a brick it still holds)
-    URScriptBackend(True, None).send(["  movej([%s], a=%.3f, v=%.3f)" % (",".join("%.5f" % math.radians(x) for x in ready), a, v)],
-                                     open_first=False)
+    URScriptBackend(True, None).send(lines, open_first=False)
+
+
+def cmd_show_ready(args):
+    """Menu v: show READY on the ghost robot in the headset (nothing real moves)."""
+    ready = load_ready()
+    if ready is None:
+        sys.exit("No READY pose: calib.json missing, or the READY spot is out of the robot's reach.")
+    msg = json.dumps({"type": "pose", "frames": [{"j": ready}]}).encode()
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+    for target in ["255.255.255.255", "192.168.137.255"] + ([args.headset] if args.headset else []):
+        try:
+            sock.sendto(msg, (target, PREVIEW_PORT))
+        except OSError:
+            pass
+    log("READY (%s): %s" % (ready_source(), "  ".join("%s %.1f" % (n, v) for n, v in zip(JOINT_NAMES, ready))))
+    log("sent to the headset: the ghost robot should now stand in READY (robot mode in the app, same hotspot)")
 
 
 def cmd_check(_args):
@@ -353,10 +450,11 @@ def cmd_check(_args):
     log("distance flange <-> robot's TCP: %.1f mm" % gap)
     ready = load_ready()
     if ready is None:
-        log("READY pose: not saved yet (menu r)")
+        log("READY pose: none (calib.json missing?)")
     else:
         offs = ready_offsets(q, ready)
-        log("READY pose: " + ("the robot is AT READY" if not offs else "NOT at ready (%s) - menu g" % describe_offsets(offs)))
+        log("READY pose (%s): %s" % (ready_source(),
+            "the robot is AT READY" if not offs else "NOT at ready (%s) - menu g" % describe_offsets(offs)))
     print("\nHow to read this: the distance should equal the TCP length set on the pendant (0 if none is set),\n"
           "and stay the SAME when you run this again in a different pose. Then our maths matches the robot.\n"
           "If it is huge (hundreds of mm) or changes a lot between poses: stop and tell Claude.")
@@ -970,7 +1068,7 @@ def handle(layout, tf, backend, args, sock=None, addr=None):
         try:
             backend.start, _tcp = read_robot_state()
             if start is None:
-                log("!! no READY pose saved (menu r): the real robot will NOT move")
+                log("!! no READY pose (calib.json?): the real robot will NOT move")
             else:
                 offs = ready_offsets(backend.start, start)
                 log("robot is at READY" if not offs else
@@ -1092,7 +1190,9 @@ def main():
         "grip": sub.add_parser("grip", help="open or close the gripper (gripper test)"),
         "ready-save": sub.add_parser("ready-save", help="the robot's current pose becomes READY (nothing moves)"),
         "go-ready": sub.add_parser("go-ready", help="move the real robot slowly to READY"),
+        "show-ready": sub.add_parser("show-ready", help="show READY on the ghost robot in the headset"),
     }
+    parsers["show-ready"].add_argument("--headset", help="headset IP (default: broadcast on the hotspot)")
     for name in ("ready-save", "go-ready"):
         parsers[name].add_argument("--yes", action="store_true", help="don't ask")
     parsers["grip"].add_argument("action", choices=["open", "close"])
@@ -1114,7 +1214,7 @@ def main():
     args = ap.parse_args()
     ROBOT_IP = args.ip
     {"calib": cmd_calib, "run": cmd_run, "corners": cmd_corners, "check": cmd_check, "grip": cmd_grip,
-     "ready-save": cmd_ready_save, "go-ready": cmd_go_ready}[args.cmd](args)
+     "ready-save": cmd_ready_save, "go-ready": cmd_go_ready, "show-ready": cmd_show_ready}[args.cmd](args)
 
 
 if __name__ == "__main__":

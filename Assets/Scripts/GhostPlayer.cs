@@ -104,6 +104,16 @@ public class GhostPlayer : MonoBehaviour
             // bridge window = back to the opening for the next visitor
             if (msg.type == "say") { VoiceGuide.Play(msg.key); continue; }
             if (msg.type == "restart") { HomeMenu.RestartFromIntro(); continue; }
+            // Bridge menu v: stand still in this pose (the robot's READY pose), no text or voice (staff check)
+            if (msg.type == "pose")
+            {
+                if (msg.frames != null && msg.frames.Length > 0 && msg.frames[0].j != null && msg.frames[0].j.Length == 6)
+                {
+                    Stop();
+                    robot.SetJointsDegrees(msg.frames[0].j);
+                }
+                continue;
+            }
             if (msg.type != "preview") continue;
             if (!string.IsNullOrEmpty(msg.error))
             {
