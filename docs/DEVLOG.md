@@ -466,6 +466,12 @@ Parjanya's bridge stays (Wi-Fi link, table frame, calibration, URScript to the r
 - **Text panels:** every floating text (wall, pavilion, ghost robot, calibration) has a **45 % black, rounded, see-through panel** behind it (`LabelPanel.cs`, sized to the text every frame; drawn with IntroOverlay, now with a ZTest setting so the panel hides behind nearer objects). Previews compared 25/35/45/60/65 %; Jin chose 45.
 - Ghost UR5 shows only the gripper (HANDZONe's pin `pointer-1/2` hidden by the setup). Headset view on the laptop: one big picture (right eye, cropped, `SHOW_HEADSET.bat`).
 
+## 2026-10-28: READY pose (the robot hit itself when starting)
+- **Problem (Jin):** at the start of a run the UR5 sometimes swung or spun and hit its own arm/wrist; the start pose "looked right" but a joint was turned by most of a turn (+300 deg looks like -60 deg). **Cause:** the program started from wherever the robot was, but its first pose was planned from `HOME_JOINTS`, so a joint at +300 was sent to -60 and turned almost a full turn. Programs also ended "back where they started", carrying an odd pose to the next run.
+- **Fix: one READY pose.** Menu **r** saves the robot's current joint numbers as READY (`ready_pose.json`; refused if the elbow is low, the gripper isn't pointing down, or a joint is turned > 3/4 turn). Menu **g** goes there slowly (15 deg/s) after listing how far each joint turns (warns if shoulder/elbow/wrist turn > 90 deg: safer on the pendant; gripper left alone). **Every real program (headset walls, test walls, corner hover) refuses to start unless every joint is within 5 deg of READY as numbers** (a full turn counts as 360 deg off), plans every pose from READY and ends at READY. The ghost starts/ends at READY too.
+- **Safety net:** a program is refused if any joint would turn more than 120 deg (shoulder, elbow, wrists 1-2) or 200 deg (base, wrist 3) between two poses. The tool yaw is chosen between yaw and yaw + 180 (brick and gripper look the same), so wrist 3 turns at most ~75 deg per move instead of 173.
+- Tested offline with a fake robot (22 checks, all pass): refuses without READY, refuses a joint +360 off, builds within 3 deg, go-ready one slow move, hover and walls start and end at READY. Not yet on the real robot.
+
 ---
 
 ## Still to do

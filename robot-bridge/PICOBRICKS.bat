@@ -21,6 +21,8 @@ echo  3  Listen for headset, GHOST ROBOT only     (nothing real moves; M = back 
 echo  4  Replay last headset layout in RoboDK   (needs a RoboDK licence)
 echo  ------------- at the REAL robot, in this order -------------
 echo  c  Robot check: read joints + position     (nothing moves)
+echo  r  Save the robot's CURRENT pose as READY  (move it there on the pendant first; nothing moves)
+echo  g  Go to READY slowly                      (REAL robot; every program starts and ends at READY)
 echo  5  Calibrate: front-right corner + front edge point, read from the robot
 echo  6  Hover above both calibration points      (REAL robot moves, slowly)
 echo  7  Gripper test: close, then open           (REAL robot)
@@ -34,6 +36,8 @@ if "%C%"=="2" %PY% picobricks_bridge.py run --backend print
 if "%C%"=="3" %PY% picobricks_bridge.py run --backend ghost
 if "%C%"=="4" %PY% picobricks_bridge.py run --file last_layout.json
 if /i "%C%"=="c" %PY% picobricks_bridge.py check
+if /i "%C%"=="r" %PY% picobricks_bridge.py ready-save
+if /i "%C%"=="g" %PY% picobricks_bridge.py go-ready
 if "%C%"=="5" %PY% picobricks_bridge.py calib
 if "%C%"=="6" %PY% picobricks_bridge.py corners --backend urscript --real
 if "%C%"=="7" (%PY% picobricks_bridge.py grip close --real & %PY% picobricks_bridge.py grip open --real)
