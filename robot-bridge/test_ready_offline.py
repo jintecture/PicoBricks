@@ -97,13 +97,15 @@ for i, name in ((5, "wrist 3"), (0, "base")):
 # 4. robot left low over the table (where it placed a brick), wrist also off -> lift first, then the rest
 frames = br.preview(jobs, tf, ready)
 low_q = [f["j"] for f in frames if f.get("grip") == "open"][-1]
-low_q = [v + (200 if k == 5 else 0) for k, v in enumerate(low_q)]
+# wrist 3 a full turn off (a real UR joint stays within +-360 deg, so the turn goes the way that stays inside)
+low_q = [v + ((-360 if v > 0 else 360) if k == 5 else 0) for k, v in enumerate(low_q)]
 g, msg = go(low_q)
 m = movejs(g) if g else []
 check("low pose: g starts by lifting straight up", g is not None and "lift the gripper" in g, msg)
 check("low pose: ends at READY", m and max(abs(a - b) for a, b in zip(m[-1], ready)) < 0.01, "%d steps" % len(m))
-check("low pose: never closer than %d mm to the table" % br.ROUTE_MIN_CLEARANCE,
-      m and clear_of_table([low_q] + m) >= br.ROUTE_MIN_CLEARANCE - 0.01, "lowest %.0f mm" % clear_of_table([low_q] + m))
+# (measured after the lift: the robot may START on a bottom-layer brick, ~27 mm above the table)
+check("low pose: after the lift, never closer than %d mm to the table" % br.ROUTE_MIN_CLEARANCE,
+      m and clear_of_table(m) >= br.ROUTE_MIN_CLEARANCE - 0.01, "lowest %.0f mm" % (clear_of_table(m) if m else -1))
 check("low pose: gripper untouched", g is not None and "digital_out" not in g)
 check("low pose: slow", g is not None and ("v=%.3f" % math.radians(br.READY_SPEED)) in g)
 
@@ -122,11 +124,24 @@ check("bottom-layer pose: the lift only goes up (same x, y)",
       and abs(br.tip_from_joints(m[0])[0][1] - br.tip_from_joints(bottom_q)[0][1]) < 1
       and br.tip_from_joints(m[0])[0][2] > br.tip_from_joints(bottom_q)[0][2])
 
-# 5. shoulder or elbow far off (twisted/folded): g refuses, says to use the pendant
-for i in (1, 2):
-    bad = [v + (200 if k == i else 0) for k, v in enumerate(ready)]
-    g, msg = go(bad)
-    check("%s +200: g refuses (pendant)" % br.JOINT_NAMES[i], g is None and "pendant" in msg, msg[:80])
+# 5a. shoulder far off (arm pointing back down): no safe scripted route -> g refuses, says to use the pendant
+bad = [v + (200 if k == 1 else 0) for k, v in enumerate(ready)]
+g, msg = go(bad)
+check("shoulder +200: g refuses (pendant)", g is None and "pendant" in msg, msg[:80])
+
+# 5b. elbow bent the other way (+191 deg, Jin's robot on 28 Oct): g goes via the arm straight up, safely
+for name, offs in (("elbow +191 (28 Oct)", {0: 338, 1: 6, 2: 191, 3: 5, 4: 14}), ("elbow +200", {2: 200})):
+    bent = [v + offs.get(k, 0) for k, v in enumerate(ready)]
+    g, msg = go(bent)
+    m = movejs(g) if g else []
+    path = [bent] + m
+    lowest = min(br.lowest_point([a + (b - a) * k / 40 for a, b in zip(p0, p1)])
+                 for p0, p1 in zip(path, path[1:]) for k in range(41)) - table if m else -1
+    check("%s: g goes via the arm straight up" % name, g is not None and "arm straight up" in g, msg[:80])
+    check("%s: ends at READY" % name, m and max(abs(a - b) for a, b in zip(m[-1], ready)) < 0.01)
+    check("%s: elbow, forearm, wrist and gripper stay >= %d mm above the table (lowest %.0f)"
+          % (name, br.ROUTE_MIN_CLEARANCE, lowest), lowest >= br.ROUTE_MIN_CLEARANCE)
+    check("%s: elbow never folds past %d deg" % (name, br.ELBOW_LIMIT), m and all(abs(p[2]) <= br.ELBOW_LIMIT for p in path))
 
 # 6. the clearance check really stops a route that would go too low
 old = br.ROUTE_MIN_CLEARANCE

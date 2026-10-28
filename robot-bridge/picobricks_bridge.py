@@ -335,29 +335,53 @@ def cmd_ready_save(args):
     log("READY pose saved to", READY_FILE)
 
 
+UPRIGHT = (-90.0, 0.0, -90.0)   # shoulder, elbow, wrist 1 (deg): the arm pointing straight up, the UR's own safe pose
+ELBOW_LIMIT = 160.0             # deg: further than this the forearm folds onto the upper arm
+
+
+def lowest_point(q):
+    """Lowest of: elbow, end of the forearm (wrist 1), flange and gripper tip (mm, robot base frame)."""
+    T = kin._link(0, math.radians(q[0]))
+    zs = []
+    for i in (1, 2, 3):
+        T = kin.mul(T, kin._link(i, math.radians(q[i])))
+        zs.append(T[2][3])
+    zs.append(kin.forward(q)[2][3])
+    zs.append(tip_from_joints(q)[0][2])
+    return min(zs)
+
+
 def ready_route(q, ready, tf):
     """Menu g: [(what happens, joints after it)] from joints q to READY, one simple step at a time:
        1. lift the gripper straight up (away from bricks and table), wrist kept as it is
-       2. turn only the gripper (wrist 3) to its READY angle: it spins on itself, also undoing full turns
-       3. turn only the base to its READY angle (arm sweeps sideways, up high)
-       4. the arm (shoulder, elbow, wrist 1, wrist 2) into READY
-    Every step is checked with our UR5 maths: gripper tip and wrist stay ROUTE_MIN_CLEARANCE above the table.
-    ValueError (with what to do instead) if the robot needs something this route can't do safely."""
+       2. if the arm's shape is far from READY (e.g. the elbow bent the other way, 28 Oct): the arm straight up first
+          (shoulder -90, elbow 0, wrist 1 -90; the UR's own safe pose), only shoulder, elbow and wrist 1 move
+       3. turn only the gripper (wrist 3) to its READY angle: it spins on itself, also undoing full turns
+       4. turn only the base to its READY angle
+       5. the arm into READY
+    Every step is checked with our UR5 maths in small pieces: elbow, forearm, wrist and gripper tip stay
+    ROUTE_MIN_CLEARANCE above the table and the elbow never folds onto the upper arm.
+    ValueError (with what to do instead) if even this route isn't safe."""
     table = tf.origin[2]
-    for i in (1, 2, 3, 4):
-        if abs(q[i] - ready[i]) > 120:
-            raise ValueError("the %s is %+.0f deg away from READY (twisted or folded far): move the robot closer to "
-                             "READY on the pendant (Move tab) first, then g again" % (JOINT_NAMES[i], q[i] - ready[i]))
+    for i in (1, 2):
+        if abs(q[i]) > 180:
+            raise ValueError("the %s is turned more than half a turn (%.0f deg): move it back on the pendant "
+                             "(Move tab) first, then g again" % (JOINT_NAMES[i], q[i]))
+    if abs(q[2]) > ELBOW_LIMIT:
+        raise ValueError("the elbow is folded very far (%.0f deg): unfold it on the pendant first, then g again" % q[2])
     steps, cur = [], list(q)
-    tip, _ = tip_from_joints(cur)
-    if tip[2] < table + LIFT_ABOVE_TABLE:
+    if tip_from_joints(cur)[0][2] < table + LIFT_ABOVE_TABLE:
         T = kin.forward(cur)
-        dz = table + LIFT_ABOVE_TABLE - tip[2]
+        dz = table + LIFT_ABOVE_TABLE - tip_from_joints(cur)[0][2]
         T[2][3] += dz
         up = kin.inverse(T, cur)
         if up is not None and max(abs(a - b) for a, b in zip(up, cur)) < 60:
             steps.append(("lift the gripper %.0f mm straight up" % dz, up))
             cur = up
+    if any(abs(cur[i] - ready[i]) > 60 for i in (1, 2, 3)):
+        nxt = [cur[0], UPRIGHT[0], UPRIGHT[1], UPRIGHT[2], cur[4], cur[5]]
+        steps.append(("arm straight up (shoulder, elbow and wrist 1 only)", nxt))
+        cur = nxt
     if abs(cur[5] - ready[5]) > 0.5:
         nxt = cur[:5] + [ready[5]]
         steps.append(("turn the gripper (wrist 3) %+.0f deg" % (ready[5] - cur[5]), nxt))
@@ -366,21 +390,25 @@ def ready_route(q, ready, tf):
         nxt = [ready[0]] + cur[1:]
         steps.append(("turn the base %+.0f deg" % (ready[0] - cur[0]), nxt))
         cur = nxt
+    for i in (1, 2, 3, 4):
+        if abs(cur[i] - ready[i]) > 180:
+            raise ValueError("the %s would have to turn %+.0f deg (more than half a turn): turn it back on the "
+                             "pendant (Move tab) first, then g again" % (JOINT_NAMES[i], ready[i] - cur[i]))
     if any(abs(cur[i] - ready[i]) > 0.01 for i in range(6)):
         steps.append(("arm into the READY pose", list(ready)))
     prev = list(q)
-    for what, target in steps:                        # every step, in small pieces: stays clear of the table
+    for what, target in steps:                        # every step, in small pieces
         if what.startswith("lift"):                   # straight up, away from the table (it may start right on it)
             prev = target
             continue
+        if abs(target[2]) > ELBOW_LIMIT:
+            raise ValueError("step '%s' would fold the elbow onto the upper arm: use the pendant" % what)
         for k in range(1, 41):
             f = k / 40
             p = [a + (b - a) * f for a, b in zip(prev, target)]
-            tip, _ = tip_from_joints(p)
-            wrist = kin.forward(p)
-            low = min(tip[2], wrist[2][3])
+            low = lowest_point(p)
             if low < table + ROUTE_MIN_CLEARANCE:
-                raise ValueError("step '%s' would bring the gripper within %.0f mm of the table: move the robot up on "
+                raise ValueError("step '%s' would bring the arm within %.0f mm of the table: move the robot up on "
                                  "the pendant first, then g again" % (what, low - table))
         prev = target
     return steps
