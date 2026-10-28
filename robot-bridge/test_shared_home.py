@@ -35,6 +35,24 @@ for layout_file in ("last_layout.json", "test_wall_lama.json"):
     except ValueError as e:
         check("%s: no joint jumps (safety net)" % layout_file, False, str(e))
     check("%s: all joints within +-360" % layout_file, all(abs(v) <= 360 for q in J for v in q))
+    # (28 Oct) one arm shape for the whole program: the base stays on the start position's side, no wrist spins
+    check("%s: base stays on the start position's side (within 90 deg of %.0f)" % (layout_file, home[0]),
+          all(abs(q[0] - home[0]) < 90 for q in J), "base %.0f..%.0f" % (min(q[0] for q in J), max(q[0] for q in J)))
+    turns = [max(abs(b[k] - a[k]) for a, b in zip(J, J[1:])) for k in range(6)]
+    check("%s: no wrist turns more than 90 deg in one move" % layout_file, max(turns[3:]) <= 90,
+          "wrist 1/2/3: %.0f / %.0f / %.0f" % tuple(turns[3:]))
+    longest = []
+    for k in range(6):                            # longest turn in one direction, over many small steps too
+        best, run, last = 0.0, 0.0, 0
+        for qa, qb in zip(J, J[1:]):
+            d = qb[k] - qa[k]
+            sg = (d > 0.01) - (d < -0.01)
+            if sg:
+                run = run + abs(d) if sg == last else abs(d)
+                last, best = sg, max(best, run)
+        longest.append(best)
+    check("%s: no joint turns more than 180 deg in one direction (no spins)" % layout_file, max(longest) <= 180,
+          ", ".join("%s %.0f" % (n, v) for n, v in zip(br.JOINT_NAMES, longest)))
     # gripper vs own arm on EVERY move; table clearance on every move except the gripping stretches (near a brick)
     worst_arm, worst_table, where = 1e9, 1e9, ""
     for i, (a, b) in enumerate(zip(J, J[1:])):

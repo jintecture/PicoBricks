@@ -282,19 +282,46 @@ def check_steps(poses):
                                  % (n + 1, JOINT_NAMES[i], b[i] - a[i]))
 
 
-def ik_closest(x, y, z, yaws, seed):
+def _wrap(a):
+    return (a + 180.0) % 360.0 - 180.0
+
+
+def arm_side(q):
+    """The arm shape of joints q: (base angle, sign of wrist 2, sign of elbow). A program keeps ONE shape from start
+    to end: on the start position's side the gripper-down poses have wrist 2 at -90 instead of +90, and a filter that
+    only knew +90 made the planner jump to the other side mid-program: base 133 / wrist 1 150 deg in one go (28 Oct)."""
+    return (q[0], 1 if _wrap(q[4]) >= 0 else -1, 1 if _wrap(q[2]) >= 0 else -1)
+
+
+def _on_side(d, side):
+    return (abs(_wrap(d[0] - side[0])) < 90 and (1 if _wrap(d[4]) >= 0 else -1) == side[1]
+            and (1 if _wrap(d[2]) >= 0 else -1) == side[2] and kin.elbow_height(d) >= ELBOW_MIN_Z)
+
+
+def ik_closest(x, y, z, yaws, seed, side=None):
     """Joint angles (deg) that put the tool, pointing down, at (x, y, z) mm, for whichever of these tool yaws keeps the
-    joints closest to seed (elbow up only), or None. Choosing among equivalent yaws keeps the wrist from turning
-    further than needed (28 Oct: up to 173 deg in one move before)."""
+    joints closest to seed, or None. side (arm_side of the start pose): only solutions in that arm shape (and elbow up);
+    without: the original elbow-up / wrist-2-positive filter. Choosing among equivalent yaws keeps the wrist from
+    turning further than needed (28 Oct: up to 173 deg in one move before)."""
     best, best_cost = None, None
     for yaw in yaws:
         flange = kin.mul(kin.tcp_pose(x, y, z, yaw), kin.transl(0, 0, -TOOL_LENGTH))
-        q = kin.inverse(flange, seed, ELBOW_MIN_Z)
-        if q is None:
-            continue
-        cost = sum((a - s) ** 2 for a, s in zip(q, seed))
-        if best is None or cost < best_cost:
-            best, best_cost = q, cost
+        if side is None:
+            cands = [kin.inverse(flange, seed, ELBOW_MIN_Z)]
+        else:
+            cands = []
+            for sol in kin.solutions(flange):
+                d = [math.degrees(a) for a in sol]
+                d = [v + 360 * round((s - v) / 360) for v, s in zip(d, seed)]       # whole turns closest to seed
+                d = [v - 360 if v > 360 else v + 360 if v < -360 else v for v in d]
+                if _on_side(d, side):
+                    cands.append(d)
+        for q in cands:
+            if q is None:
+                continue
+            cost = sum((a - s) ** 2 for a, s in zip(q, seed))
+            if best is None or cost < best_cost:
+                best, best_cost = q, cost
     return best
 
 
@@ -466,16 +493,15 @@ def work_pose(tf, home):
     pose some gripping moves turned wrist 1 by 150 deg and brought the gripper into the forearm (28 Oct test), so that
     one only comes after, with equivalent wrist angles; the first with a safe change-over both ways is used."""
     x, y, z = tf.point(0, 300, TRAVEL_Z)
-    w = ik_closest(x, y, z, [tf.yaw0 + 90 * k for k in range(4)], home)
+    w = ik_closest(x, y, z, [tf.yaw0 + 90 * k for k in range(4)], home, arm_side(home))
     if w is None:
-        raise ValueError("the robot can't reach above the table (calib.json?)")
-    tested = computed_ready(tf)
-    options = [tested] if tested else []
+        raise ValueError("the robot can't reach above the table from the start position's side (calib.json?)")
+    options = []
     for w1 in (w[3], w[3] - 360, w[3] + 360):
         for w2 in (w[4], w[4] - 360, w[4] + 360):
             if abs(w1) <= 360 and abs(w2) <= 360:
                 options.append(w[:3] + [w1, w2, w[5]])
-    options[1:] = sorted(options[1:], key=lambda o: sum(abs(a - b) for a, b in zip(o, home)))
+    options.sort(key=lambda o: sum(abs(a - b) for a, b in zip(o, home)))
     for o in options:
         try:
             transition(home, o, tf)
@@ -1001,7 +1027,7 @@ class URScriptBackend:
         poses, lines = [q], []
         for p in pts:
             # hovering doesn't care which way the gripper faces: keep the wrist as it is
-            q = ik_closest(p[0], p[1], p[2] + 30, [self.tf.yaw0 + 90 * k for k in range(4)], q)
+            q = ik_closest(p[0], p[1], p[2] + 30, [self.tf.yaw0 + 90 * k for k in range(4)], q, arm_side(ready))
             if q is None:
                 sys.exit("can't reach above the corner %s - check calib.json" % p)
             poses.append(q)
@@ -1080,7 +1106,7 @@ def preview(jobs, tf, start=None):
 
     def ik(T, seed):
         x, y, z, yaw = T
-        q = ik_closest(x, y, z, (yaw, yaw + 180), seed)   # brick and gripper look the same turned half a turn
+        q = ik_closest(x, y, z, (yaw, yaw + 180), seed, side)   # brick and gripper look the same turned half a turn
         if q is None:
             raise ValueError("the robot can't reach x %.0f y %.0f z %.0f mm" % (x, y, z))
         return q
@@ -1104,6 +1130,7 @@ def preview(jobs, tf, start=None):
     # (28 Oct) READY is the start position shared with Suzanne: the program changes over from there into our
     # gripping shape by a route checked against the arm model, and back at the end.
     home = [float(v) for v in (start if start else (load_ready(tf) or HOME_JOINTS))]
+    side = arm_side(home)                         # one arm shape for the whole program (no side switches)
     q = list(home)
     add(q)
 
@@ -1147,11 +1174,13 @@ def preview(jobs, tf, start=None):
                 why = "too close to its base" if dist < 250 else "too far away"
                 raise ValueError("the robot can't reach %s %s (%.0f cm from the robot: %s)"
                                  % (name, where, dist / 10, why))
-    q = ik_closest(*tf.point(0, 300, TRAVEL_Z), [tf.yaw0 + 90 * k for k in range(4)], q) or q
-    if max(abs(a - b) for a, b in zip(q, work)) > 0.5:
-        add(work)                                 # back above the middle of the table, same shape as the start
-    q = list(work)
-    go_along(transition(work, home, tf))
+    # Back above the middle of the table with the wrist where it is now (jumping to the exact start-of-program wrist
+    # angle turned wrist 3 by 218 deg in one go, 28 Oct), then the checked change-over home in steps of <= 20 deg
+    last = list(q)
+    q = ik_closest(*tf.point(0, 300, TRAVEL_Z), [tf.yaw0 + 90 * k for k in range(4)], q, side) or q
+    if max(abs(a - b) for a, b in zip(q, last)) > 0.5:
+        add(q)
+    go_along(transition(q, home, tf))
     return frames
 
 
