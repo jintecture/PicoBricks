@@ -135,20 +135,21 @@ for name, offs in (("elbow +191 (28 Oct)", {0: 338, 1: 6, 2: 191, 3: 5, 4: 14}),
     g, msg = go(bent)
     m = movejs(g) if g else []
     path = [bent] + m
-    lowest = min(br.lowest_point([a + (b - a) * k / 40 for a, b in zip(p0, p1)])
-                 for p0, p1 in zip(path, path[1:]) for k in range(41)) - table if m else -1
-    check("%s: g goes via the arm straight up" % name, g is not None and "arm straight up" in g, msg[:80])
+    gaps = [br.move_gaps(p0, p1, table, 30) for p0, p1 in zip(path, path[1:])] if m else [(-1, -1)]
+    arm_gap, table_gap = min(g_[0] for g_ in gaps), min(g_[1] for g_ in gaps)
+    check("%s: g finds a route" % name, g is not None, msg[:80])
     check("%s: ends at READY" % name, m and max(abs(a - b) for a, b in zip(m[-1], ready)) < 0.01)
-    check("%s: elbow, forearm, wrist and gripper stay >= %d mm above the table (lowest %.0f)"
-          % (name, br.ROUTE_MIN_CLEARANCE, lowest), lowest >= br.ROUTE_MIN_CLEARANCE)
+    check("%s: gripper >= %d mm from the arm (%.0f), arm >= %d mm above the table (%.0f)"
+          % (name, br.MIN_ARM_GAP, arm_gap, br.MIN_TABLE_GAP, table_gap),
+          arm_gap >= br.MIN_ARM_GAP and table_gap >= br.MIN_TABLE_GAP)
     check("%s: elbow never folds past %d deg" % (name, br.ELBOW_LIMIT), m and all(abs(p[2]) <= br.ELBOW_LIMIT for p in path))
 
 # 6. the clearance check really stops a route that would go too low
-old = br.ROUTE_MIN_CLEARANCE
-br.ROUTE_MIN_CLEARANCE = 10000
+old = br.MIN_TABLE_GAP
+br.MIN_TABLE_GAP = 10000
 g, msg = go([v + (90 if k == 0 else 0) for k, v in enumerate(ready)])
 check("route through the table is refused", g is None and "within" in msg, msg[:80])
-br.ROUTE_MIN_CLEARANCE = old
+br.MIN_TABLE_GAP = old
 
 # 7. after g the robot is at READY and builds
 g, _ = go([v + (360 if k == 5 else 0) for k, v in enumerate(ready)])

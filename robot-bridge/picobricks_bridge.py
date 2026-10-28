@@ -248,7 +248,7 @@ def load_ready(tf=None):
 
 
 def ready_source():
-    return "saved by hand (menu r, ready_pose.json)" if os.path.exists(READY_FILE) else "calculated by the laptop"
+    return "the start position shared with Suzanne (ready_pose.json)" if os.path.exists(READY_FILE) else "calculated by the laptop"
 
 
 def ready_offsets(q, ready):
@@ -335,33 +335,160 @@ def cmd_ready_save(args):
     log("READY pose saved to", READY_FILE)
 
 
-UPRIGHT = (-90.0, 0.0, -90.0)   # shoulder, elbow, wrist 1 (deg): the arm pointing straight up, the UR's own safe pose
-ELBOW_LIMIT = 160.0             # deg: further than this the forearm folds onto the upper arm
+# ---------------- the arm as solid tubes: gripper must not hit the robot's own arm, nothing may hit the table -----
+# (28 Oct) Suzanne's start pose has the gripper pointing sideways; going from there to our gripping shape in one move
+# swung our gripper ~10 cm INTO the forearm (wrist 2 passing -180 deg). Every change-over and every menu-g route is
+# now checked against this model before anything moves. UR5 links sit beside the DH line along the joint axis.
+SHOULDER_OFFSET, ELBOW_OFFSET = 135.85, 119.7          # mm (UR5)
+ARM_RADIUS = {"base": 75.0, "upper": 55.0, "fore": 45.0, "wrist": 45.0, "tool": 60.0}   # mm; tool = our gripper block
+MIN_ARM_GAP = 15.0        # mm: gripper <-> robot's own base / upper arm / forearm (normal gripping poses have ~20)
+MIN_TABLE_GAP = 30.0      # mm: arm and gripper above the table (outside the gripping moves themselves)
+UPRIGHT = (-90.0, 0.0)    # shoulder, elbow: the arm pointing straight up (the UR's own safe pose)
+ELBOW_LIMIT = 160.0       # deg: further than this the forearm folds onto the upper arm
 
 
-def lowest_point(q):
-    """Lowest of: elbow, end of the forearm (wrist 1), flange and gripper tip (mm, robot base frame)."""
+def _arm_tubes(q):
     T = kin._link(0, math.radians(q[0]))
-    zs = []
-    for i in (1, 2, 3):
+    F = [T]
+    for i in range(1, 6):
         T = kin.mul(T, kin._link(i, math.radians(q[i])))
-        zs.append(T[2][3])
-    zs.append(kin.forward(q)[2][3])
-    zs.append(tip_from_joints(q)[0][2])
-    return min(zs)
+        F.append(T)
+    pos = lambda M: (M[0][3], M[1][3], M[2][3])
+    ax = (F[0][0][2], F[0][1][2], F[0][2][2])                 # shoulder / elbow / wrist-1 axis
+    off = lambda p, d: tuple(a + d * b for a, b in zip(p, ax))
+    sh, el, w1 = pos(F[0]), pos(F[1]), pos(F[2])
+    fl = pos(F[5])
+    tip = tuple(a + TOOL_LENGTH * b for a, b in zip(fl, (F[5][0][2], F[5][1][2], F[5][2][2])))
+    return {"base": ((0.0, 0.0, -50.0), (0.0, 0.0, sh[2])),
+            "upper": (off(sh, SHOULDER_OFFSET), off(el, SHOULDER_OFFSET)),
+            "fore": (off(el, SHOULDER_OFFSET - ELBOW_OFFSET), off(w1, SHOULDER_OFFSET - ELBOW_OFFSET)),
+            "wrist": (pos(F[3]), pos(F[4])), "tool": (fl, tip)}
+
+
+def _seg_dist(p1, q1, p2, q2):
+    """Shortest distance between segments p1-q1 and p2-q2 (mm)."""
+    d1 = [b - a for a, b in zip(p1, q1)]
+    d2 = [b - a for a, b in zip(p2, q2)]
+    r = [a - b for a, b in zip(p1, p2)]
+    a, e = sum(x * x for x in d1), sum(x * x for x in d2)
+    b, c, f = sum(x * y for x, y in zip(d1, d2)), sum(x * y for x, y in zip(d1, r)), sum(x * y for x, y in zip(d2, r))
+    den = a * e - b * b
+    sn = min(1.0, max(0.0, (b * f - c * e) / den)) if den > 1e-9 else 0.0
+    t = (b * sn + f) / e if e > 1e-9 else 0.0
+    if t < 0:
+        t, sn = 0.0, (min(1.0, max(0.0, -c / a)) if a > 1e-9 else 0.0)
+    elif t > 1:
+        t, sn = 1.0, (min(1.0, max(0.0, (b - c) / a)) if a > 1e-9 else 0.0)
+    return math.dist([p + sn * d for p, d in zip(p1, d1)], [p + t * d for p, d in zip(p2, d2)])
+
+
+def arm_gaps(q, table):
+    """(gripper <-> own arm, arm/gripper <-> table) clearance in mm for joints q (deg)."""
+    B = _arm_tubes(q)
+    R = ARM_RADIUS
+    arm = min(_seg_dist(*B["tool"], *B[o]) - R["tool"] - R[o] for o in ("base", "upper", "fore"))
+    arm = min(arm, _seg_dist(*B["wrist"], *B["base"]) - R["wrist"] - R["base"])
+    pts = [B["upper"][1], B["fore"][0], B["fore"][1], B["wrist"][0], B["wrist"][1], B["tool"][0], B["tool"][1]]
+    return arm, min(p[2] for p in pts) - table - 40.0      # ~40 mm of body below those centre lines
+
+
+def move_gaps(a, b, table, n=60):
+    """Worst clearances along a joint move from a to b (the robot's movej interpolates the joints linearly)."""
+    worst_arm, worst_table = 1e9, 1e9
+    for k in range(n + 1):
+        g_arm, g_table = arm_gaps([x + (y - x) * k / n for x, y in zip(a, b)], table)
+        worst_arm, worst_table = min(worst_arm, g_arm), min(worst_table, g_table)
+    return worst_arm, worst_table
+
+
+def transition(a, b, tf):
+    """[(what happens, joints)] from joints a to b, checked against the arm model; ValueError if no safe way.
+    Tries, in this order: one direct move; the wrists first with wrist 2 pointing the gripper away from the arm (0 deg)
+    then base, shoulder + elbow, wrist 3; the same after first bringing the arm straight up."""
+    table = tf.origin[2]
+
+    def via_wrists(p0):
+        p, out = list(p0), []
+        if abs(p[4]) > 0.5 and (abs(p[3] - b[3]) > 0.5 or abs(p[4] - b[4]) > 0.5):
+            p[4] = 0.0
+            out.append(("wrist 2 to 0 (gripper pointing away from the arm)", list(p)))
+        for idx, what in (((3,), "wrist 1"), ((4,), "wrist 2"), ((0,), "base"), ((1, 2), "shoulder and elbow"),
+                          ((5,), "wrist 3")):
+            if any(abs(p[i] - b[i]) > 0.01 for i in idx):
+                for i in idx:
+                    p[i] = b[i]
+                out.append((what, list(p)))
+        return out
+
+    up = list(a)
+    up[1], up[2] = UPRIGHT
+    candidates = [[("straight to the pose", list(b))], via_wrists(a),
+                  [("arm straight up (shoulder and elbow)", list(up))] + via_wrists(up)]
+    best = None
+    for steps in candidates:
+        if not steps:
+            return []
+        cur, worst_arm, worst_table, bad = list(a), 1e9, 1e9, False
+        for _, nxt in steps:
+            if abs(nxt[2]) > ELBOW_LIMIT:
+                bad = True
+                break
+            g_arm, g_table = move_gaps(cur, nxt, table)
+            worst_arm, worst_table = min(worst_arm, g_arm), min(worst_table, g_table)
+            cur = nxt
+        if not bad and worst_arm >= MIN_ARM_GAP and worst_table >= MIN_TABLE_GAP:
+            return steps
+        if not bad and (best is None or min(worst_arm, worst_table) > best):
+            best = min(worst_arm, worst_table)
+    raise ValueError("no safe way found (the gripper would come within %.0f mm of the arm or the table): move the robot "
+                     "closer on the pendant (Move tab) first" % (best if best is not None else -1))
+
+
+def check_arm(frames, tf):
+    """Last check before a program goes to the real robot: every move against the arm model. ValueError if the
+    gripper would come closer than MIN_ARM_GAP to the robot's own arm anywhere, or the arm closer than MIN_TABLE_GAP
+    to the table outside the straight stretches down to a brick (there the gripper is meant to be at the table)."""
+    table = tf.origin[2]
+    J = [f["j"] for f in frames]
+    for i, (a, b) in enumerate(zip(J, J[1:])):
+        g_arm, g_table = move_gaps(a, b, table, 20)
+        near_brick = any(f.get("lin") or f.get("grip") for f in (frames[i], frames[i + 1]))
+        if g_arm < MIN_ARM_GAP:
+            raise ValueError("move %d would bring the gripper within %.0f mm of the robot's own arm - refusing (safety)"
+                             % (i + 1, g_arm))
+        if not near_brick and g_table < MIN_TABLE_GAP:
+            raise ValueError("move %d would bring the arm within %.0f mm of the table - refusing (safety)" % (i + 1, g_table))
+
+
+def work_pose(tf, home):
+    """Our gripping start pose: gripper down, TRAVEL_Z above the middle of the table. First choice: the arm shape all
+    wall moves were developed and tested in (computed_ready: elbow up, untwisted). In the shape nearest Suzanne's start
+    pose some gripping moves turned wrist 1 by 150 deg and brought the gripper into the forearm (28 Oct test), so that
+    one only comes after, with equivalent wrist angles; the first with a safe change-over both ways is used."""
+    x, y, z = tf.point(0, 300, TRAVEL_Z)
+    w = ik_closest(x, y, z, [tf.yaw0 + 90 * k for k in range(4)], home)
+    if w is None:
+        raise ValueError("the robot can't reach above the table (calib.json?)")
+    tested = computed_ready(tf)
+    options = [tested] if tested else []
+    for w1 in (w[3], w[3] - 360, w[3] + 360):
+        for w2 in (w[4], w[4] - 360, w[4] + 360):
+            if abs(w1) <= 360 and abs(w2) <= 360:
+                options.append(w[:3] + [w1, w2, w[5]])
+    options[1:] = sorted(options[1:], key=lambda o: sum(abs(a - b) for a, b in zip(o, home)))
+    for o in options:
+        try:
+            transition(home, o, tf)
+            transition(o, home, tf)
+            return o
+        except ValueError:
+            continue
+    raise ValueError("no safe change-over between the start position and the gripping pose")
 
 
 def ready_route(q, ready, tf):
-    """Menu g: [(what happens, joints after it)] from joints q to READY, one simple step at a time:
-       1. lift the gripper straight up (away from bricks and table), wrist kept as it is
-       2. if the arm's shape is far from READY (e.g. the elbow bent the other way, 28 Oct): the arm straight up first
-          (shoulder -90, elbow 0, wrist 1 -90; the UR's own safe pose), only shoulder, elbow and wrist 1 move
-       3. turn only the gripper (wrist 3) to its READY angle: it spins on itself, also undoing full turns
-       4. turn only the base to its READY angle
-       5. the arm into READY
-    Every step is checked with our UR5 maths in small pieces: elbow, forearm, wrist and gripper tip stay
-    ROUTE_MIN_CLEARANCE above the table and the elbow never folds onto the upper arm.
-    ValueError (with what to do instead) if even this route isn't safe."""
+    """Menu g: [(what happens, joints)] from joints q to READY: lift the gripper straight up if it is low, then a
+    route checked against the arm model (transition). ValueError with what to do if there is no safe way."""
     table = tf.origin[2]
     for i in (1, 2):
         if abs(q[i]) > 180:
@@ -378,40 +505,7 @@ def ready_route(q, ready, tf):
         if up is not None and max(abs(a - b) for a, b in zip(up, cur)) < 60:
             steps.append(("lift the gripper %.0f mm straight up" % dz, up))
             cur = up
-    if any(abs(cur[i] - ready[i]) > 60 for i in (1, 2, 3)):
-        nxt = [cur[0], UPRIGHT[0], UPRIGHT[1], UPRIGHT[2], cur[4], cur[5]]
-        steps.append(("arm straight up (shoulder, elbow and wrist 1 only)", nxt))
-        cur = nxt
-    if abs(cur[5] - ready[5]) > 0.5:
-        nxt = cur[:5] + [ready[5]]
-        steps.append(("turn the gripper (wrist 3) %+.0f deg" % (ready[5] - cur[5]), nxt))
-        cur = nxt
-    if abs(cur[0] - ready[0]) > 0.5:
-        nxt = [ready[0]] + cur[1:]
-        steps.append(("turn the base %+.0f deg" % (ready[0] - cur[0]), nxt))
-        cur = nxt
-    for i in (1, 2, 3, 4):
-        if abs(cur[i] - ready[i]) > 180:
-            raise ValueError("the %s would have to turn %+.0f deg (more than half a turn): turn it back on the "
-                             "pendant (Move tab) first, then g again" % (JOINT_NAMES[i], ready[i] - cur[i]))
-    if any(abs(cur[i] - ready[i]) > 0.01 for i in range(6)):
-        steps.append(("arm into the READY pose", list(ready)))
-    prev = list(q)
-    for what, target in steps:                        # every step, in small pieces
-        if what.startswith("lift"):                   # straight up, away from the table (it may start right on it)
-            prev = target
-            continue
-        if abs(target[2]) > ELBOW_LIMIT:
-            raise ValueError("step '%s' would fold the elbow onto the upper arm: use the pendant" % what)
-        for k in range(1, 41):
-            f = k / 40
-            p = [a + (b - a) * f for a, b in zip(prev, target)]
-            low = lowest_point(p)
-            if low < table + ROUTE_MIN_CLEARANCE:
-                raise ValueError("step '%s' would bring the arm within %.0f mm of the table: move the robot up on "
-                                 "the pendant first, then g again" % (what, low - table))
-        prev = target
-    return steps
+    return steps + transition(cur, list(ready), tf)
 
 
 def cmd_go_ready(args):
@@ -892,6 +986,7 @@ class URScriptBackend:
             ready = load_ready() or [float(v) for v in HOME_JOINTS]
         frames = preview(jobs, self.tf, ready)
         check_steps([f["j"] for f in frames])
+        check_arm(frames, self.tf)
         self.send(self.joint_moves(frames))
 
     def hover(self, pts):
@@ -1006,15 +1101,24 @@ def preview(jobs, tf, start=None):
     # Start and end at READY (start), so the ghost and the robot begin in the same, known pose. Every pose is planned
     # from the one before, so joints never jump by a turn. (Until 28 Oct the first pose was planned from HOME_JOINTS
     # while the robot could be anywhere: a joint at +300 deg was sent to -60 deg and the arm spun into itself.)
-    q = [float(v) for v in (start if start else (load_ready() or HOME_JOINTS))]
-    home = list(q)
+    # (28 Oct) READY is the start position shared with Suzanne: the program changes over from there into our
+    # gripping shape by a route checked against the arm model, and back at the end.
+    home = [float(v) for v in (start if start else (load_ready(tf) or HOME_JOINTS))]
+    q = list(home)
     add(q)
-    cx, cy, cz = tf.point(0, 300, TRAVEL_Z)
-    try:
-        q = ik((cx, cy, cz, tf.yaw0 + 90), q)
-        add(q)
-    except ValueError:
-        pass
+
+    def go_along(steps):                          # change-over: in steps of <= 20 deg (ghost and robot follow them)
+        nonlocal q
+        for _, target in steps:
+            n = max(1, int(math.ceil(max(abs(a - b) for a, b in zip(q, target)) / 20.0)))
+            a = list(q)
+            for k in range(1, n + 1):
+                q = [x + (y - x) * k / n for x, y in zip(a, target)]
+                add(q)
+
+    work = work_pose(tf, home)
+    go_along(transition(home, work, tf))
+    q = list(work)
     for name, P, Q, _, _ in jobs:
         for T, grip in ((P, "close"), (Q, "open")):
             x, y, z, yaw = T
@@ -1043,7 +1147,11 @@ def preview(jobs, tf, start=None):
                 why = "too close to its base" if dist < 250 else "too far away"
                 raise ValueError("the robot can't reach %s %s (%.0f cm from the robot: %s)"
                                  % (name, where, dist / 10, why))
-    add(home)
+    q = ik_closest(*tf.point(0, 300, TRAVEL_Z), [tf.yaw0 + 90 * k for k in range(4)], q) or q
+    if max(abs(a - b) for a, b in zip(q, work)) > 0.5:
+        add(work)                                 # back above the middle of the table, same shape as the start
+    q = list(work)
+    go_along(transition(work, home, tf))
     return frames
 
 
