@@ -863,7 +863,10 @@ class URScriptBackend:
         if end_joints is not None:
             end = ["  movej([%s], a=%.3f, v=%.3f)" % (",".join("%.5f" % math.radians(x) for x in end_joints),
                                                       math.radians(JOINT_ACCEL), math.radians(JOINT_SPEED))]
-        prog = ("def picobricks():\n" + "\n".join((self.grip(False) if open_first else []) + lines + end) +
+        # Our tool for this program only, whatever TCP is set on the pendant (Suzanne's disassembly setup uses another
+        # one, 28 Oct). The straight moves onto the bricks (movel) follow this TCP; the pendant setting is untouched.
+        tcp = ["  set_tcp(p[0, 0, %.4f, 0, 0, 0])" % (TOOL_LENGTH / 1000)]
+        prog = ("def picobricks():\n" + "\n".join(tcp + (self.grip(False) if open_first else []) + lines + end) +
                 "\n  textmsg(\"picobricks done\")\nend\n")
         path = os.path.join(HERE, "last_program.script")
         with open(path, "w") as f:
