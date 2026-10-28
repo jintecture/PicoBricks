@@ -471,6 +471,7 @@ Parjanya's bridge stays (Wi-Fi link, table frame, calibration, URScript to the r
 - **Fix: one READY pose.** Menu **r** saves the robot's current joint numbers as READY (`ready_pose.json`; refused if the elbow is low, the gripper isn't pointing down, or a joint is turned > 3/4 turn). Menu **g** goes there slowly (15 deg/s) after listing how far each joint turns (warns if shoulder/elbow/wrist turn > 90 deg: safer on the pendant; gripper left alone). **Every real program (headset walls, test walls, corner hover) refuses to start unless every joint is within 5 deg of READY as numbers** (a full turn counts as 360 deg off), plans every pose from READY and ends at READY. The ghost starts/ends at READY too.
 - **Safety net:** a program is refused if any joint would turn more than 120 deg (shoulder, elbow, wrists 1-2) or 200 deg (base, wrist 3) between two poses. The tool yaw is chosen between yaw and yaw + 180 (brick and gripper look the same), so wrist 3 turns at most ~75 deg per move instead of 173.
 - Tested offline with a fake robot (22 checks, all pass): refuses without READY, refuses a joint +360 off, builds within 3 deg, go-ready one slow move, hover and walls start and end at READY. Not yet on the real robot.
+- **Gap at sharp bends:** check_path.py on Jin's 27 Oct wall (made with the 10 mm app) found 2.8 mm between two bricks at a 146 deg bend: the gap was only along the wall. The planner's overlap test now uses each brick plus 5 mm on all sides, so neighbours are >= ~8 mm apart everywhere (sharp bends get straightened a little instead).
 
 ---
 

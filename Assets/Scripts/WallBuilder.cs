@@ -363,7 +363,14 @@ public class WallBuilder : MonoBehaviour
         //    never overlap, also on S-curves and sharp bends (overlaps seen in the headset, 21 Oct). The candidate
         //    whose front end lands closest to the curve wins. If no candidate fits, the bend is too sharp for real
         //    bricks: it is straightened step by step until one fits (a straight continuation always does).
-        Vector3[] Feet(Vector3 s, Vector3 d) => new[] { s, s + d * L, s + d * L + Side(d) * W, s + Side(d) * W };
+        // For the overlap test: the brick plus half the gap on ALL sides (the slot already has it at both ends), so two
+        // that don't overlap are at least brickGap apart everywhere. Along the wall alone wasn't enough: at a sharp
+        // bend (146 deg) the inner corners came within 2.8 mm (Jin's wall, 27 Oct; found with check_path.py)
+        float m = brickGap / 2f;
+        Vector3[] Feet(Vector3 s, Vector3 d) => new[]
+        {
+            s - Side(d) * m, s + d * L - Side(d) * m, s + d * L + Side(d) * (W + m), s + Side(d) * (W + m)
+        };
         var chain = new List<(Vector3 frontStart, Vector3 dir)> { (wallCurve[0], firstDir) };
         var laid = new List<Vector3[]> { Feet(wallCurve[0], firstDir) };
         for (int i = 1; i < perLayer; i++)
