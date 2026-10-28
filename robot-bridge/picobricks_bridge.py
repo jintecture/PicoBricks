@@ -62,6 +62,8 @@ APPROACH = 80.0         # mm: go straight down/up this last bit with MoveL
 TRAVEL_Z = 250.0        # mm above the table top for moves between pick and place
 PLACE_CLEARANCE = 2.0   # mm: release this far above the exact place height
 SPEED = 100.0           # mm/s linear (first tests: slow)
+APPROACH_SPEED = 50.0   # mm/s: the last bit straight down onto a brick and straight up again (movel)
+APPROACH_ACCEL = 300.0  # mm/s^2
 JOINT_SPEED = 30.0      # deg/s (the pendant's speed slider slows this down further)
 JOINT_ACCEL = 60.0      # deg/s^2
 BLEND_MAX = 20.0        # mm: how much the robot may cut corners between in-between poses (0 = stop at every pose)
@@ -790,10 +792,21 @@ class URScriptBackend:
         lines = []
         for i, f in enumerate(frames):
             q = ",".join("%.5f" % math.radians(x) for x in f["j"])
+            nxt = frames[i + 1] if i + 1 < len(frames) else {}
+            # Straight down onto the brick and straight up again: ONE movel to the end of that stretch (the robot's
+            # own straight line with its TCP), slow, no blend. As joint moves the gripper came down slightly sideways
+            # and hit the brick's corner while gripping (28 Oct).
+            if f.get("lin"):
+                if not f.get("grip") and nxt.get("lin"):
+                    continue                                   # in-between pose of the straight stretch
+                lines.append("  movel([%s], a=%.3f, v=%.3f, r=0)" % (q, APPROACH_ACCEL / 1000, APPROACH_SPEED / 1000))
+                if f.get("grip"):
+                    lines += URScriptBackend.grip(f["grip"] == "close")
+                continue
             # Blend: flow through in-between poses instead of stopping at each one (stop-go looked jerky, 22 Oct).
-            # Stop exactly only where the gripper acts, and at the end. The blend may cut the corner by at most
-            # BLEND_MAX, and never more than 40 % of the distance to the neighbouring poses (UR requirement).
-            if f.get("grip") or i == len(frames) - 1:
+            # Stop exactly where the gripper acts, before a straight stretch, and at the end. The blend may cut the
+            # corner by at most BLEND_MAX, and never more than 40 % of the distance to the neighbouring poses.
+            if f.get("grip") or i == len(frames) - 1 or nxt.get("lin"):
                 r = 0.0
             else:
                 d_prev = math.dist(hand[i], hand[i - 1]) if i > 0 else 1e9
@@ -949,11 +962,14 @@ def preview(jobs, tf, start=None):
     def add(q, **extra):
         frames.append(dict(j=[round(v, 2) for v in q], **extra))
 
-    def straight(a, b, q):                       # MoveL: a few poses on the straight line
+    def straight(a, b, q, lin=False):            # MoveL: a few poses on the straight line (for the ghost)
         for i in range(1, PREVIEW_STEPS + 1):
             f = i / PREVIEW_STEPS
             q = ik([a[k] + (b[k] - a[k]) * f for k in range(4)], q)
-            add(q)
+            if lin:
+                add(q, lin=True)                 # the real robot does this bit as ONE true straight move (movel)
+            else:
+                add(q)
         return q
 
     # Start and end at READY (start), so the ghost and the robot begin in the same, known pose. Every pose is planned
@@ -986,9 +1002,9 @@ def preview(jobs, tf, start=None):
                 q = ik(travel, q)
                 add(q)
                 q = straight(travel, up, q)
-                q = straight(up, at, q)
+                q = straight(up, at, q, lin=True)       # straight down onto the brick
                 frames[-1].update(grip=grip, brick=name)
-                q = straight(at, up, q)
+                q = straight(at, up, q, lin=True)       # straight up again
                 q = straight(up, travel, q)
             except ValueError:
                 where = "in the tray" if grip == "close" else "in the wall"

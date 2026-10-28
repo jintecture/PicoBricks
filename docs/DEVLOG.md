@@ -482,6 +482,11 @@ Parjanya's bridge stays (Wi-Fi link, table frame, calibration, URScript to the r
 - Menu c showed 358 mm between our flange and the robot's TCP (was 151). Checked: tool orientation matches our maths to 0.1 deg, and with the UR5 dimensions the robot's numbers are explained exactly by a TCP of (0, 358, 0) mm, i.e. the **pendant TCP was changed** (sideways 358 instead of 151 along the tool); the arm is the same UR5. Our moves use joint angles, so they don't depend on it, but the robot's safety limits do: set it back to X 0, Y 0, Z 151 on the pendant (Installation > TCP). Also check the same gripper is mounted, and recalibrate (menu 5) if the robot or table was moved.
 - At that moment the robot stood twisted: base +331, wrist 1 +329 from READY (menu g refuses wrist 1 > 120 off: turn it back on the pendant first).
 
+## 2026-10-28 (afternoon): Straight down onto the bricks, curve following, 1 layer
+- **Gripper hit the brick's corner while gripping:** the last 80 mm down to a brick (and back up) were joint moves, so the gripper didn't come down perfectly vertically. Now that stretch is ONE `movel` (the robot's own straight line, with its TCP, which is back at 151 mm), at 50 mm/s, after a full stop above the brick. Checked on Jin's latest wall: 24 straight moves for 6 bricks, all < 0.05 mm sideways. The ghost still plays the same poses.
+- **Bricks stopped following the curve:** this morning's "margin all round each brick" rejected most bent positions, so the planner straightened the wall. Back to the slot test (gap along the wall), plus an exact check of the real distance between real bricks (>= 6 mm, `minBrickDistance`), which only rejects what is really too close (like the 146 deg fold).
+- **1 layer didn't work:** 6 bricks in a row (66 cm with the gaps) hardly ever fits the 40 x 40 cm pad, so it was refused as too big. Now each wall uses as many bricks per layer as fit (from 6 / 3 / 2 down to 2), and the text says how many (`perLayerNow`).
+
 ---
 
 ## Still to do

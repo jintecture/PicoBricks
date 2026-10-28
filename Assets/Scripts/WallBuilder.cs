@@ -47,6 +47,8 @@ public class WallBuilder : MonoBehaviour
     [Tooltip("Free space between neighbouring bricks (m). Touching bricks (0 mm) got hit by the real robot while it " +
              "lowered the next one: the real UR5 can be ~8 mm off the ghost (25 Oct)")]
     public float brickGap = 0.010f;
+    [Tooltip("Real bricks may never come closer than this (m), also at the inside of sharp bends (the bridge warns < 5 mm)")]
+    public float minBrickDistance = 0.006f;
     public int maxLayers = 3;
 
     [Header("Drawing")]
@@ -67,6 +69,7 @@ public class WallBuilder : MonoBehaviour
     /// <summary>Raised when the user confirms the previewed wall with A: BrickSender then sends it to the robot.</summary>
     public event System.Action Confirmed;
     List<BrickPose> previewPlan;   // the wall now shown, null if it doesn't fit
+    int perLayerNow;               // bricks per layer in that wall (fewer when the full row doesn't fit the pad)
 
     readonly List<Vector3> curve = new List<Vector3>();   // table space, y = 0
     int layers = 1;
@@ -278,10 +281,21 @@ public class WallBuilder : MonoBehaviour
     void ShowWall()
     {
         if (controls != null) controls.ResetBricks(false); // start from the tray (a previous preview may differ)
-        int perLayer = BrickCount / layers;
-        string layerLine = $"Your wall: {perLayer} bricks long, {layers} high";
-        var plan = PlanRectangle(layers, out var wallCurve);
-        if (!FitIntoArea(plan, wallCurve, out float movedCm))
+        // As many bricks per layer as fit in the drawing pad: 6 x 1 (66 cm with the gaps) hardly ever fits the
+        // 40 x 40 cm pad (28 Oct), so a lower wall uses fewer bricks instead of refusing (down to 2 per layer)
+        List<BrickPose> plan = null;
+        List<Vector3> wallCurve = null;
+        float movedCm = 0f;
+        bool fits = false;
+        for (perLayerNow = BrickCount / layers; perLayerNow >= 2 && !fits; perLayerNow--)
+        {
+            plan = PlanRectangle(layers, perLayerNow, out wallCurve);
+            fits = FitIntoArea(plan, wallCurve, out movedCm);
+            if (fits) break;
+        }
+        if (!fits) perLayerNow = BrickCount / layers;
+        string layerLine = $"Your wall: {perLayerNow} bricks long, {layers} high";
+        if (!fits)
         {
             previewPlan = null;
             ShowCurve(curve);
@@ -314,17 +328,15 @@ public class WallBuilder : MonoBehaviour
     void Confirm()
     {
         step = Step.Sent;
-        int perLayer = BrickCount / layers;
-        SavePlan(previewPlan, perLayer);
+        SavePlan(previewPlan, perLayerNow);
         Say("Watch the see-through robot\nrehearse your wall");
         Confirmed?.Invoke();
     }
 
     // Rectangle: every layer has the same chain of bricks along the curve, stacked straight up.
     // (Whether it fits is checked afterwards, in FitIntoArea.)
-    List<BrickPose> PlanRectangle(int layerCount, out List<Vector3> wallCurve)
+    List<BrickPose> PlanRectangle(int layerCount, int perLayer, out List<Vector3> wallCurve)
     {
-        int perLayer = BrickCount / layerCount;
         // Each brick gets a slot of its length + the gap; the chain, the overlap test and the fit test all use the
         // slot, and the brick sits in the middle of it, so neighbours are always at least brickGap apart
         float L = brickSize.z + brickGap, W = brickSize.x;
@@ -363,16 +375,19 @@ public class WallBuilder : MonoBehaviour
         //    never overlap, also on S-curves and sharp bends (overlaps seen in the headset, 21 Oct). The candidate
         //    whose front end lands closest to the curve wins. If no candidate fits, the bend is too sharp for real
         //    bricks: it is straightened step by step until one fits (a straight continuation always does).
-        // For the overlap test: the brick plus half the gap on ALL sides (the slot already has it at both ends), so two
-        // that don't overlap are at least brickGap apart everywhere. Along the wall alone wasn't enough: at a sharp
-        // bend (146 deg) the inner corners came within 2.8 mm (Jin's wall, 27 Oct; found with check_path.py)
+        // Overlap test on the slots (brick + gap along the wall), and separately the REAL distance between the real
+        // bricks must be >= minBrickDistance. At a sharp bend (146 deg) slots alone let inner corners come within
+        // 2.8 mm (Jin's wall, 27 Oct, check_path.py); a margin all round (28 Oct morning) rejected most bends and the
+        // wall stopped following the curve. This only rejects what is really too close.
         float m = brickGap / 2f;
-        Vector3[] Feet(Vector3 s, Vector3 d) => new[]
+        Vector3[] Feet(Vector3 s, Vector3 d) => new[] { s, s + d * L, s + d * L + Side(d) * W, s + Side(d) * W };
+        Vector3[] Body(Vector3 s, Vector3 d) => new[]
         {
-            s - Side(d) * m, s + d * L - Side(d) * m, s + d * L + Side(d) * (W + m), s + Side(d) * (W + m)
+            s + d * m, s + d * (L - m), s + d * (L - m) + Side(d) * W, s + d * m + Side(d) * W
         };
         var chain = new List<(Vector3 frontStart, Vector3 dir)> { (wallCurve[0], firstDir) };
         var laid = new List<Vector3[]> { Feet(wallCurve[0], firstDir) };
+        var bodies = new List<Vector3[]> { Body(wallCurve[0], firstDir) };
         for (int i = 1; i < perLayer; i++)
         {
             var (prevStart, prevDir) = chain[i - 1];
@@ -408,6 +423,7 @@ public class WallBuilder : MonoBehaviour
                     }
                     var feet = Feet(start, d);
                     if (OverlapsAny(feet, laid)) continue;
+                    if (TooClose(Body(start, d), bodies, minBrickDistance)) continue;
                     float miss = DistanceToCurve(wallCurve, start + d * L);
                     if (miss < bestMiss)
                     {
@@ -423,6 +439,7 @@ public class WallBuilder : MonoBehaviour
             progress = bestProgress;
             chain.Add((bestStart, bestDir));
             laid.Add(Feet(bestStart, bestDir));
+            bodies.Add(Body(bestStart, bestDir));
         }
 
         var plan = new List<BrickPose>();
@@ -442,6 +459,28 @@ public class WallBuilder : MonoBehaviour
                 });
             }
         return plan;
+    }
+
+    // Is this real brick (4 corners on the table) closer than `min` to any of the laid ones? Exact distance between
+    // two convex outlines along the best separating edge normal (same as the bridge's check, robot-bridge)
+    static bool TooClose(Vector3[] a, List<Vector3[]> laid, float min)
+    {
+        foreach (var b in laid)
+        {
+            float best = float.MinValue;
+            foreach (var q in new[] { a, b })
+                for (int i = 0; i < 4; i++)
+                {
+                    Vector3 e = q[(i + 1) % 4] - q[i];
+                    var n = new Vector2(-e.z, e.x).normalized;
+                    float aMin = float.MaxValue, aMax = float.MinValue, bMin = float.MaxValue, bMax = float.MinValue;
+                    foreach (var p in a) { float v = n.x * p.x + n.y * p.z; aMin = Mathf.Min(aMin, v); aMax = Mathf.Max(aMax, v); }
+                    foreach (var p in b) { float v = n.x * p.x + n.y * p.z; bMin = Mathf.Min(bMin, v); bMax = Mathf.Max(bMax, v); }
+                    best = Mathf.Max(best, Mathf.Max(bMin - aMax, aMin - bMax));
+                }
+            if (best < min) return true;
+        }
+        return false;
     }
 
     // Does this brick footprint (4 corners on the table) overlap any of the laid ones? Touching is fine: both are
